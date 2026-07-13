@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "@prisma/client": "^6.2.0",
+    "body-parser": "^2.3.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-fileupload": "^1.5.2",
+    "prisma": "^6.2.0",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2"
+  }
+}
