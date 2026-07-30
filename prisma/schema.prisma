@@ -19,8 +19,175 @@ model User {
   name String
   empNo String
   password String
+  rfId String
+  role String
+  status String @default("use")
+  MapGroupSectionUser MapGroupSectionUser[]
+  HeaderIssueTemp HeaderIssueTemp[]
+}
+
+
+
+model Group {
+  id Int @id() @default(autoincrement())
+  name String
+  status String @default("use")
+  MapGroupSectionUser MapGroupSectionUser[]
+}
+
+
+model Section {
+  id Int @id() @default(autoincrement())
+  name String
+  status String @default("use")
+  MapGroupSectionUser MapGroupSectionUser[]
+}
+
+
+model MapGroupSectionUser {
+  id Int @id() @default(autoincrement())
+  groupId Int
+  sectionId Int
+  userId Int
+  status String @default("use")
+  Section Section @relation(fields: [sectionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Group Group @relation(fields: [groupId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+
+model PartMaster {
+  id Int @id() @default(autoincrement())
+  itemNo String
+  itemName String
+  timeStmp DateTime @default(now())
   status String @default("use")
 }
+
+model HeaderIssueTemp {
+  id Int @id() @default(autoincrement())
+  dateIssue DateTime
+  itemNo String
+  itemName String
+  qtyBox Int
+  shift String
+  groupId Int
+  controlLotId Int
+  locationId Int
+  totalBox Int
+  moveMentThreeMonth String
+  userId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  BoxIssueTemp BoxIssueTemp[]
+  MapHeaderIssueTempFraction MapHeaderIssueTempFraction[]
+}
+
+model HeaderIssue {
+  id Int @id() @default(autoincrement())
+  dateIssue DateTime
+  itemNo String
+  itemName String
+  qtyBox Int
+  shift String
+  groupId Int
+  controlLotId Int
+  idPallet String
+  locationId Int
+  totalBox Int
+  moveMentThreeMonth String
+  userId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  MapHeaderIssueFraction MapHeaderIssueFraction[]
+}
+
+model ControlLot {
+  id Int @id() @default(autoincrement())
+  name String
+  status String @default("use")
+}
+
+model Location {
+  id Int @id() @default(autoincrement())
+  name String
+  status String @default("use")
+}
+
+model BoxIssueTemp {
+  id Int @id() @default(autoincrement())
+  headerId Int
+  itemNo String
+  itemName String
+  wosNo String
+  dwg String
+  dieNo String
+  lotNo String
+  qty Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  HeaderIssueTemp HeaderIssueTemp @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  MapHeaderIssueTempFraction MapHeaderIssueTempFraction[]
+}
+
+
+model MapHeaderIssueTempFraction {
+  id Int @id() @default(autoincrement())
+  headerId Int
+  boxId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  HeaderIssueTemp HeaderIssueTemp @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  BoxIssueTemp BoxIssueTemp @relation(fields: [boxId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+
+model MapHeaderIssueFraction {
+  id Int @id() @default(autoincrement())
+  headerId Int
+  boxId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id])
+}
+
+
+model HeaderClosedTemp {
+  id Int @id() @default(autoincrement())
+  boxId Int
+  status String @default("use")
+}
+
+model HeaderClosed {
+  id Int @id() @default(autoincrement())
+  closedNO String
+  status String @default("use")
+}
+
+
+model Box {
+  id Int @id() @default(autoincrement())
+  headerIssueId Int
+  headerClosedId Int
+  itemNo String
+  itemName String
+  wosNo String
+  dwg String
+  dieNo String
+  lotNo String
+  qty Int
+  status String @default("use") 
+}
+
+
+
+
+
+
+
+
+
 
 
 
