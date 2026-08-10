@@ -49,9 +49,22 @@ app.get('/api/controlLot/list',(req,res) => controlLotController.list(req,res))
 //issue 
 app.post('/api/issue/fetchHeaderTemp', (req,res) => issueController.fetchHeaderTemp(req,res))
 app.post('/api/issue/createHeaderTemp', (req,res) => issueController.createHeaderTemp(req,res))
+app.post('/api/issue/editHeaderTemp', (req,res) => issueController.editHeaderTemp(req,res))
 app.post('/api/issue/createBoxTemp', (req,res) => issueController.createBoxTemp(req,res))
 app.post('/api/issue/fetchBoxTempByHeadId', (req,res) => issueController.fetchBoxTempByHeadId(req,res))
-app.post('/api/issue/editHeaderTemp', (req,res) => issueController.fetchBoxTempByHeadId(req,res))
+app.post('/api/issue/editBoxIssueTemp', (req,res) => issueController.editBoxIssueTemp(req,res))
+
+app.post('/api/issue/createHeaderTempFraction', (req,res) => issueController.createHeaderTempFraction(req,res))
+app.post('/api/issue/mapFractionTemp', (req,res) => issueController.mapFractionTemp(req,res))
+app.post('/api/issue/fractionTempListByHeaderTempId', (req, res) => issueController.fractionTempListByHeaderTempId(req, res));
+app.post('/api/issue/editFractionTemp', (req, res) => issueController.editFractionTemp(req, res));
+app.post('/api/issue/editFractionBoxTemp', (req, res) => issueController.editFractionBoxTemp(req, res));
+app.post('/api/issue/deleteBoxTempIssue', (req, res) => issueController.deleteBoxTempIssue(req, res));
+app.post('/api/issue/deleteAllBoxTempIssue', (req, res) => issueController.deleteAllBoxTempIssue(req, res));
+app.post('/api/issue/deleteheaderTemp', (req, res) => issueController.deleteheaderTemp(req, res));
+app.post('/api/issue/deleteheaderFractionTemp', (req, res) => issueController.deleteheaderFractionTemp(req, res));
+app.post('/api/issue/deleteAllFractionBoxTemp', (req, res) => issueController.deleteAllFractionBoxTemp(req, res));
+app.post('/api/issue/deleteFractionBoxTemp', (req, res) => issueController.deleteFractionBoxTemp(req, res));
 
 
 

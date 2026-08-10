@@ -82,6 +82,7 @@ model HeaderIssueTemp {
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   BoxIssueTemp BoxIssueTemp[]
   MapHeaderIssueTempFraction MapHeaderIssueTempFraction[]
+  HeaderIssueTempFraction HeaderIssueTempFraction[]
 }
 
 model HeaderIssue {
@@ -101,6 +102,7 @@ model HeaderIssue {
   timeStmp DateTime @default(now())
   status String @default("use")
   MapHeaderIssueFraction MapHeaderIssueFraction[]
+  HeaderIssueFraction HeaderIssueFraction[]
 }
 
 model ControlLot {
@@ -132,13 +134,36 @@ model BoxIssueTemp {
 }
 
 
+model HeaderIssueTempFraction{
+  id Int @id() @default(autoincrement())
+  qtyBox Int
+  headerId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  MapHeaderIssueTempFraction MapHeaderIssueTempFraction[]
+  HeaderIssueTemp HeaderIssueTemp @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model HeaderIssueFraction{
+  id Int @id() @default(autoincrement())
+  qtyBox Int
+  headerId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  MapHeaderIssueFraction MapHeaderIssueFraction[]
+  HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+}
+
+
 model MapHeaderIssueTempFraction {
   id Int @id() @default(autoincrement())
   headerId Int
+  headerFractionId Int
   boxId Int
   timeStmp DateTime @default(now())
   status String @default("use")
   HeaderIssueTemp HeaderIssueTemp @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  HeaderIssueTempFraction HeaderIssueTempFraction @relation(fields: [headerFractionId], references: [id])
   BoxIssueTemp BoxIssueTemp @relation(fields: [boxId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -146,10 +171,12 @@ model MapHeaderIssueTempFraction {
 model MapHeaderIssueFraction {
   id Int @id() @default(autoincrement())
   headerId Int
+  headerFractionId Int
   boxId Int
   timeStmp DateTime @default(now())
   status String @default("use")
   HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id])
+  HeaderIssueFraction HeaderIssueFraction @relation(fields: [headerFractionId], references: [id])
 }
 
 
