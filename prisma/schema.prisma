@@ -70,7 +70,8 @@ model HeaderIssueTemp {
   itemNo String
   itemName String
   qtyBox Int
-  shift String
+  normalQty Int?
+  shift String  
   groupId Int
   controlLotId Int
   locationId Int
@@ -91,6 +92,7 @@ model HeaderIssue {
   itemNo String
   itemName String
   qtyBox Int
+  normalQty Int
   shift String
   groupId Int
   controlLotId Int

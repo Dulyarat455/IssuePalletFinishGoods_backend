@@ -57,6 +57,45 @@ module.exports = {
         }
     },
 
+    addNormalQty: async (req,res) => {
+      try{
+          const {normalQty, headTempId} = req.body;
+
+          const headerIssueTemp = await prisma.headerIssueTemp.findFirst({
+            where: {
+                id:  parseInt(headTempId),
+                status: 'use'
+            },
+            
+          });
+
+          if (!headerIssueTemp) {
+            return res.status(400).send({
+              message: 'header_issueTemp_notFound'
+            });
+          }
+
+          const updateHeaderIssueTemp = await prisma.headerIssueTemp.update({
+            where:{
+                id: parseInt(headTempId)
+            },
+            data: {
+              normalQty: parseInt(normalQty),          
+            }
+        });
+
+        return res.send({
+          message: 'add_normalQty_success',
+          data: updateHeaderIssueTemp,
+        })
+
+      }catch(e){
+        return res.status(500).send({ error: e.message });
+      }
+    },
+
+
+
     fetchHeaderTemp: async (req,res) =>{
         try{
 

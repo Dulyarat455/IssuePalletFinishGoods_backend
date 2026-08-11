@@ -49,6 +49,8 @@ app.get('/api/controlLot/list',(req,res) => controlLotController.list(req,res))
 //issue 
 app.post('/api/issue/fetchHeaderTemp', (req,res) => issueController.fetchHeaderTemp(req,res))
 app.post('/api/issue/createHeaderTemp', (req,res) => issueController.createHeaderTemp(req,res))
+app.post('/api/issue/addNormalQty', (req,res) => issueController.addNormalQty(req,res))
+
 app.post('/api/issue/editHeaderTemp', (req,res) => issueController.editHeaderTemp(req,res))
 app.post('/api/issue/createBoxTemp', (req,res) => issueController.createBoxTemp(req,res))
 app.post('/api/issue/fetchBoxTempByHeadId', (req,res) => issueController.fetchBoxTempByHeadId(req,res))
