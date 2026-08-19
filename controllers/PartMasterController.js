@@ -69,6 +69,17 @@ module.exports = {
           error: e.message,
         });
       }
+    },
+
+    syncMaterial: async (req, res) => {
+      try{
+          
+
+      }catch(e){
+        return res.status(500).send({
+          error: e.message,
+        });
+      }
     }
 
       

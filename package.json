@@ -2,11 +2,14 @@
   "dependencies": {
     "@prisma/client": "^6.2.0",
     "body-parser": "^2.3.0",
+    "bwip-js": "^4.11.2",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-fileupload": "^1.5.2",
     "jsonwebtoken": "^9.0.3",
     "prisma": "^6.2.0",
+    "puppeteer": "^25.1.0",
+    "qrcode": "^1.5.4",
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
