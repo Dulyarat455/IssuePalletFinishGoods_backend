@@ -1519,8 +1519,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        TEMP FIXED VALUE
-
-       ภายหลังค่อยเปลี่ยนเป็นค่าจริงจากระบบ
     ===================================================== */
 
     const FIX_OQC_LOT_NO = 'S67258';
@@ -1531,7 +1529,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       HELPER
+       HELPERS
     ===================================================== */
 
     const escapeHtml = (value) => {
@@ -1577,13 +1575,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        SHORT LOT NO
-
-       Example:
-
-       L24X25ABSS
-
-       digit 2-6
-       => 24X25
     ===================================================== */
 
     const getShortLotNo = (lotNo) => {
@@ -1606,11 +1597,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        CHUNK ARRAY
-
-       1-5
-       6-10
-       11-15
-       ...
     ===================================================== */
 
     const chunkArray = (arr, size) => {
@@ -1635,12 +1621,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        QTY DISPLAY
-
-       1000
-       1000
-       1000
-
-       => 1,000 x 3
     ===================================================== */
 
     const qtyMultiplyList = (qtyList = []) => {
@@ -1679,7 +1659,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        BARCODE
-       CODE128
     ===================================================== */
 
     const generateBarcodeDataUrl =
@@ -1711,7 +1690,6 @@ printFullLabel: async (req, res) => {
               'FFFFFF'
           });
 
-
         return toPngDataUri(
           png
         );
@@ -1728,11 +1706,14 @@ printFullLabel: async (req, res) => {
         return await QRCode.toDataURL(
           String(text || ''),
           {
-            errorCorrectionLevel: 'M',
+            errorCorrectionLevel:
+              'M',
 
-            margin: 1,
+            margin:
+              1,
 
-            width: 150
+            width:
+              150
           }
         );
       };
@@ -1777,16 +1758,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        QR STOCK IN
-
-       OQC LOT NO = 6
-       S/C        = 1
-       DIE NO     = 10
-       LOT NO     = 12
-       TOTAL QTY  = 13
-
-       Total = 42 Characters
-
-       TOTAL QTY = Right Align
     ===================================================== */
 
     const buildStockInQrText = ({
@@ -1803,7 +1774,6 @@ printFullLabel: async (req, res) => {
         );
 
 
-      /* S/C blank */
       const scPart =
         padRight(
           '',
@@ -1846,19 +1816,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        QR ISSUE D/O
-
-       LOT NO     = 8
-       DIE NO     = 5
-       BOX QTY    = 3
-       OQC LOT NO = 15
-       REMARK #2  = 15
-
-       BOX QTY = Blank
-
-       OQC LOT NO =
-       OQC LOT NO / ID PALLET
-
-       REMARK #2 = Blank
     ===================================================== */
 
     const buildIssueDoQrText = ({
@@ -1882,7 +1839,6 @@ printFullLabel: async (req, res) => {
         );
 
 
-      /* BOX QTY blank */
       const boxQtyPart =
         padRight(
           '',
@@ -1897,7 +1853,6 @@ printFullLabel: async (req, res) => {
         );
 
 
-      /* REMARK #2 blank */
       const remarkPart =
         padRight(
           '',
@@ -1948,7 +1903,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       LOAD LOCATION
+       LOCATION
     ===================================================== */
 
     const location =
@@ -1967,9 +1922,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       LOAD NORMAL BOX
-
-       Box ที่ยังไม่ได้ถูก Map เป็น Fraction
+       NORMAL BOX
     ===================================================== */
 
     const normalRows =
@@ -2038,7 +1991,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       LOAD FRACTION BOX
+       FRACTION BOX
     ===================================================== */
 
     const fractionMaps =
@@ -2151,9 +2104,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       FIRST DATA ROW
-
-       ใช้แสดงข้อมูลส่วนหัว
+       FIRST ROW
     ===================================================== */
 
     const firstAnyRow =
@@ -2245,10 +2196,6 @@ printFullLabel: async (req, res) => {
     };
 
 
-    /* =====================================================
-       NORMAL
-    ===================================================== */
-
     normalRows.forEach(
       (row) => {
 
@@ -2260,10 +2207,6 @@ printFullLabel: async (req, res) => {
       }
     );
 
-
-    /* =====================================================
-       FRACTION
-    ===================================================== */
 
     fractionRows.forEach(
       (row) => {
@@ -2278,7 +2221,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       PREPARE GROUP RESULT
+       PREPARE GROUP
     ===================================================== */
 
     let groupedRows =
@@ -2343,11 +2286,6 @@ printFullLabel: async (req, res) => {
                 );
 
 
-            const totalQty =
-              fullTotal +
-              partialTotal;
-
-
             return {
 
               no:
@@ -2378,14 +2316,15 @@ printFullLabel: async (req, res) => {
                 ),
 
               totalQty:
-                totalQty
+                fullTotal +
+                partialTotal
             };
           }
         );
 
 
     /* =====================================================
-       SORT LOT NO
+       SORT
     ===================================================== */
 
     groupedRows =
@@ -2414,10 +2353,6 @@ printFullLabel: async (req, res) => {
       );
 
 
-    /* =====================================================
-       RE NUMBER
-    ===================================================== */
-
     groupedRows =
       groupedRows.map(
         (
@@ -2437,7 +2372,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       HEADER DATA
+       HEADER VALUE
     ===================================================== */
 
     const itemNoForBarcode =
@@ -2455,9 +2390,9 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       TOP BARCODE
+       ITEM BARCODE
 
-       DATA = ITEM NO
+       รอบนี้ลดขนาดลง
     ===================================================== */
 
     const topLeftBarcode =
@@ -2465,10 +2400,10 @@ printFullLabel: async (req, res) => {
         itemNoForBarcode,
         {
           scale:
-            2.8,
+            3.0,
 
           height:
-            26
+            28
         }
       );
 
@@ -2491,7 +2426,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       GENERATE QR EACH LOT GROUP
+       QR EACH LOT
     ===================================================== */
 
     const groupedRowsWithQr =
@@ -2502,10 +2437,6 @@ printFullLabel: async (req, res) => {
       const row
       of groupedRows
     ) {
-
-      /* ==============================
-         STOCK IN QR
-      ============================== */
 
       const stockInQrText =
         buildStockInQrText({
@@ -2523,10 +2454,6 @@ printFullLabel: async (req, res) => {
             row.totalQty || 0
         });
 
-
-      /* ==============================
-         ISSUE D/O QR
-      ============================== */
 
       const issueDoQrText =
         buildIssueDoQrText({
@@ -2561,29 +2488,22 @@ printFullLabel: async (req, res) => {
 
         ...row,
 
-        stockInQrText:
-          stockInQrText,
+        stockInQrText,
+        issueDoQrText,
 
-        issueDoQrText:
-          issueDoQrText,
-
-        stockInQr:
-          stockInQr,
-
-        issueDoQr:
-          issueDoQr
+        stockInQr,
+        issueDoQr
       });
     }
 
 
     /* =====================================================
        PAGING
-
-       1 PAGE = 5 ROW
+       4 LOT / PAGE
     ===================================================== */
 
     const rowsPerPage =
-      5;
+      4;
 
 
     const pageGroups =
@@ -2600,9 +2520,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       GRAND TOTAL QTY
-
-       Total ทั้ง Pallet
+       GRAND TOTAL
     ===================================================== */
 
     const grandTotalQty =
@@ -2662,8 +2580,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        EMPTY ROW
-
-       ใช้เติมให้ครบ 5 Row
     ===================================================== */
 
     const renderEmptyRow =
@@ -2672,33 +2588,13 @@ printFullLabel: async (req, res) => {
         return `
           <tr class="empty-row">
 
-            <td>
-              &nbsp;
-            </td>
-
-            <td>
-              &nbsp;
-            </td>
-
-            <td>
-              &nbsp;
-            </td>
-
-            <td>
-              &nbsp;
-            </td>
-
-            <td>
-              &nbsp;
-            </td>
-
-            <td>
-              &nbsp;
-            </td>
-
-            <td>
-              &nbsp;
-            </td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
 
           </tr>
         `;
@@ -2707,8 +2603,6 @@ printFullLabel: async (req, res) => {
 
     /* =====================================================
        TABLE ROW
-
-       บังคับ Render 5 Row เสมอ
     ===================================================== */
 
     const renderTableRows =
@@ -2728,10 +2622,6 @@ printFullLabel: async (req, res) => {
             rows[i];
 
 
-          /* =========================
-             Empty Slot
-          ========================= */
-
           if (!row) {
 
             htmlRows.push(
@@ -2742,15 +2632,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* =========================
-             Data Slot
-          ========================= */
-
           htmlRows.push(`
             <tr class="data-row">
 
-
-              <!-- NO -->
 
               <td class="row-no">
 
@@ -2761,8 +2645,6 @@ printFullLabel: async (req, res) => {
               </td>
 
 
-              <!-- LOT NO -->
-
               <td class="lot-cell">
 
                 ${escapeHtml(
@@ -2771,8 +2653,6 @@ printFullLabel: async (req, res) => {
 
               </td>
 
-
-              <!-- FULL BOX -->
 
               <td class="box-cell">
 
@@ -2783,8 +2663,6 @@ printFullLabel: async (req, res) => {
               </td>
 
 
-              <!-- PARTIAL BOX -->
-
               <td class="box-cell">
 
                 ${renderQtyCell(
@@ -2793,8 +2671,6 @@ printFullLabel: async (req, res) => {
 
               </td>
 
-
-              <!-- TOTAL QTY -->
 
               <td class="total-cell">
 
@@ -2807,8 +2683,6 @@ printFullLabel: async (req, res) => {
               </td>
 
 
-              <!-- STOCK IN -->
-
               <td class="qr-cell">
 
                 <img
@@ -2818,8 +2692,6 @@ printFullLabel: async (req, res) => {
 
               </td>
 
-
-              <!-- ISSUE D/O -->
 
               <td class="qr-cell">
 
@@ -2841,7 +2713,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       RENDER ONE PAGE
+       RENDER PAGE
     ===================================================== */
 
     const renderPage =
@@ -2878,16 +2750,14 @@ printFullLabel: async (req, res) => {
             <div class="sheet">
 
 
-              <!-- =================================================
+              <!-- ==========================================
                    HEADER AREA
-              ================================================== -->
+              =========================================== -->
 
               <div class="header-area">
 
 
-                <!-- =============================================
-                     TOP
-                ============================================== -->
+                <!-- ITEM HEADER -->
 
                 <div class="top-header">
 
@@ -2904,7 +2774,7 @@ printFullLabel: async (req, res) => {
                   </div>
 
 
-                  <!-- ITEM TEXT -->
+                  <!-- ITEM NO / NAME -->
 
                   <div class="top-center">
 
@@ -2943,16 +2813,14 @@ printFullLabel: async (req, res) => {
 
 
 
-                <!-- =============================================
-                     META
-                ============================================== -->
+                <!-- META -->
 
                 <div class="meta-grid">
 
 
                   <!-- LEFT -->
 
-                  <div class="meta-left">
+                  <div>
 
 
                     <div class="meta-row">
@@ -3031,7 +2899,7 @@ printFullLabel: async (req, res) => {
 
                   <!-- CENTER -->
 
-                  <div class="meta-middle">
+                  <div>
 
 
                     <div class="meta-row">
@@ -3146,9 +3014,9 @@ printFullLabel: async (req, res) => {
 
 
 
-              <!-- =================================================
-                   TABLE AREA
-              ================================================== -->
+              <!-- ==========================================
+                   TABLE
+              =========================================== -->
 
               <div class="table-area">
 
@@ -3207,10 +3075,9 @@ printFullLabel: async (req, res) => {
 
 
 
-              <!-- =================================================
+              <!-- ==========================================
                    FOOTER
-                   ล็อกไว้ล่างสุดของใบ
-              ================================================== -->
+              =========================================== -->
 
               <div class="bottom-bar">
 
@@ -3253,25 +3120,20 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       ALL PAGES
+       ALL PAGE
     ===================================================== */
 
     const pagesHtml =
       pageGroups
         .map(
-          (rows) => {
-
-            return renderPage(
-              rows
-            );
-
-          }
+          (rows) =>
+            renderPage(rows)
         )
         .join('');
 
 
     /* =====================================================
-       FULL HTML
+       HTML
     ===================================================== */
 
     const html = `
@@ -3286,12 +3148,6 @@ printFullLabel: async (req, res) => {
         <style>
 
 
-          /* =================================================
-             A4 LANDSCAPE
-
-             297 x 210 mm
-          ================================================= */
-
           @page {
 
             size:
@@ -3303,14 +3159,12 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           * {
 
             box-sizing:
               border-box;
 
           }
-
 
 
           html,
@@ -3336,7 +3190,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           body {
 
             font-size:
@@ -3345,10 +3198,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              PAGE
-          ================================================= */
+          =========================================== */
 
           .page {
 
@@ -3367,7 +3219,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .page:last-child {
 
             break-after:
@@ -3379,13 +3230,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              SHEET
-
-             ใช้ Flex Column
-             เพื่อดัน Footer ลงล่างสุด
-          ================================================= */
+          =========================================== */
 
           .sheet {
 
@@ -3413,10 +3260,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
-             HEADER AREA
-          ================================================= */
+          /* ==========================================
+             HEADER
+          =========================================== */
 
           .header-area {
 
@@ -3426,45 +3272,55 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
-             TOP HEADER
-          ================================================= */
+          /* ==========================================
+             TOP ITEM AREA
+          =========================================== */
 
           .top-header {
 
             display:
               grid;
 
+            /*
+              ลด column ของ Barcode
+              จาก 350px ลงมา
+            */
             grid-template-columns:
               300px
               minmax(0, 1fr)
-              70px;
+              78px;
+
+            column-gap:
+              24px;
 
             align-items:
               start;
 
-            column-gap:
-              18px;
+            /*
+              ยังเก็บความสูงของ Header เดิมไว้
+              เพื่อไม่ให้ Table ขยับขึ้น
+            */
+            min-height:
+              132px;
 
             margin-bottom:
-              7px;
+              19px;
 
           }
 
 
+          /* ==========================================
+             ITEM BARCODE
 
-          /* =================================================
-             TOP BARCODE
-          ================================================= */
+             รอบนี้ลดเฉพาะ Barcode
+          =========================================== */
 
           .barcode-wrap {
 
             padding-top:
-              1px;
+              5px;
 
           }
-
 
 
           .top-barcode {
@@ -3472,11 +3328,15 @@ printFullLabel: async (req, res) => {
             display:
               block;
 
+            /*
+              เดิม 335 x 100
+              ลดลงเป็น 285 x 72
+            */
             width:
               285px;
 
             height:
-              64px;
+              72px;
 
             object-fit:
               fill;
@@ -3484,48 +3344,56 @@ printFullLabel: async (req, res) => {
           }
 
 
+          /* ==========================================
+             ITEM NO / ITEM NAME
 
-          /* =================================================
-             ITEM
-          ================================================= */
+             เหมือนเดิม
+          =========================================== */
 
           .top-center {
 
             padding-top:
-              3px;
+              1px;
 
           }
-
 
 
           .item-no {
 
             font-size:
-              23px;
+              48px;
 
             line-height:
-              1.05;
+              1;
 
             font-weight:
-              800;
+              900;
+
+            letter-spacing:
+              0.2px;
+
+            white-space:
+              nowrap;
 
             margin-bottom:
-              8px;
+              15px;
 
           }
-
 
 
           .item-name {
 
             font-size:
-              21px;
+              41px;
 
             line-height:
-              1.05;
+              1.02;
 
             font-weight:
-              800;
+              900;
+
+            overflow-wrap:
+              anywhere;
 
             word-break:
               break-word;
@@ -3533,10 +3401,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
-             FG / WIP
-          ================================================= */
+          /* ==========================================
+             FG
+          =========================================== */
 
           .top-type {
 
@@ -3544,7 +3411,7 @@ printFullLabel: async (req, res) => {
               right;
 
             font-size:
-              30px;
+              36px;
 
             line-height:
               1;
@@ -3553,15 +3420,14 @@ printFullLabel: async (req, res) => {
               900;
 
             padding-top:
-              6px;
+              9px;
 
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              META
-          ================================================= */
+          =========================================== */
 
           .meta-grid {
 
@@ -3580,13 +3446,12 @@ printFullLabel: async (req, res) => {
               start;
 
             margin-top:
-              2px;
+              8px;
 
             margin-bottom:
-              10px;
+              13px;
 
           }
-
 
 
           .meta-row {
@@ -3613,7 +3478,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .meta-row .label {
 
             color:
@@ -3632,7 +3496,6 @@ printFullLabel: async (req, res) => {
               nowrap;
 
           }
-
 
 
           .meta-row .value {
@@ -3655,7 +3518,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .pcs {
 
             margin-left:
@@ -3667,10 +3529,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              ID PALLET
-          ================================================= */
+          =========================================== */
 
           .meta-right {
 
@@ -3687,19 +3548,17 @@ printFullLabel: async (req, res) => {
               center;
 
             padding-top:
-              12px;
+              10px;
 
           }
-
 
 
           .id-barcode-wrap {
 
             margin:
-              12px 0 5px;
+              10px 0 5px;
 
           }
-
 
 
           .id-barcode {
@@ -3719,7 +3578,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .id-pallet-text {
 
             font-size:
@@ -3731,38 +3589,27 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
-             TABLE AREA
-
-             กินพื้นที่ที่เหลือ
-             แต่เหลือที่ Footer ด้านล่าง
-          ================================================= */
+          /* ==========================================
+             TABLE
+          =========================================== */
 
           .table-area {
 
             flex:
-              1 1 auto;
+              0 0 auto;
 
-            min-height:
-              0;
+            width:
+              100%;
 
-            display:
-              flex;
-
-            flex-direction:
-              column;
+            margin-top:
+              21px;
 
           }
-
 
 
           .main-table {
 
             width:
-              100%;
-
-            height:
               100%;
 
             border-collapse:
@@ -3774,7 +3621,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .main-table th,
           .main-table td {
 
@@ -3782,20 +3628,6 @@ printFullLabel: async (req, res) => {
               1px solid #333;
 
           }
-
-
-
-          /* =================================================
-             TABLE HEADER
-          ================================================= */
-
-          .main-table thead {
-
-            height:
-              31px;
-
-          }
-
 
 
           .main-table th {
@@ -3830,33 +3662,18 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
-             TABLE BODY
-
-             5 แถวเท่ากัน
-             ขยายให้เต็มพื้นที่
-          ================================================= */
-
-          .main-table tbody {
-
-            height:
-              calc(100% - 31px);
-
-          }
-
-
-
           .main-table tbody tr {
 
             height:
-              20%;
+              82px;
 
           }
 
 
-
           .main-table td {
+
+            height:
+              82px;
 
             padding:
               7px 7px;
@@ -3882,10 +3699,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              COLUMN WIDTH
-          ================================================= */
+          =========================================== */
 
           .col-no {
 
@@ -3893,7 +3709,6 @@ printFullLabel: async (req, res) => {
               56px;
 
           }
-
 
 
           .col-lot {
@@ -3904,14 +3719,12 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .col-box {
 
             width:
               148px;
 
           }
-
 
 
           .col-total {
@@ -3922,7 +3735,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .col-qr {
 
             width:
@@ -3931,10 +3743,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
-             DATA ALIGN
-          ================================================= */
+          /* ==========================================
+             ALIGN
+          =========================================== */
 
           .row-no {
 
@@ -3942,7 +3753,6 @@ printFullLabel: async (req, res) => {
               center;
 
           }
-
 
 
           .lot-cell {
@@ -3956,14 +3766,12 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .box-cell {
 
             text-align:
               left;
 
           }
-
 
 
           .total-cell {
@@ -3977,7 +3785,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .cell-line {
 
             line-height:
@@ -3989,10 +3796,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              QR
-          ================================================= */
+          =========================================== */
 
           .qr-cell {
 
@@ -4006,7 +3812,6 @@ printFullLabel: async (req, res) => {
               4px !important;
 
           }
-
 
 
           .qr-img {
@@ -4026,12 +3831,14 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              EMPTY ROW
-          ================================================= */
+          =========================================== */
 
           .empty-row td {
+
+            height:
+              82px;
 
             background:
               #fff;
@@ -4039,12 +3846,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-
-          /* =================================================
+          /* ==========================================
              FOOTER
-
-             margin-top:auto ทำให้ติดด้านล่าง
-          ================================================= */
+          =========================================== */
 
           .bottom-bar {
 
@@ -4075,7 +3879,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .bottom-left {
 
             color:
@@ -4093,7 +3896,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-
           .bottom-left b {
 
             color:
@@ -4103,7 +3905,6 @@ printFullLabel: async (req, res) => {
               800;
 
           }
-
 
 
           .bottom-right {
@@ -4146,7 +3947,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       CREATE BROWSER
+       PUPPETEER
     ===================================================== */
 
     browser =
@@ -4166,10 +3967,6 @@ printFullLabel: async (req, res) => {
       await browser.newPage();
 
 
-    /* =====================================================
-       SET HTML
-    ===================================================== */
-
     await page.setContent(
       html,
       {
@@ -4180,15 +3977,11 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       WAIT FONT + IMAGE
+       WAIT IMAGE + FONT
     ===================================================== */
 
     await page.evaluate(
       async () => {
-
-        /* =========================
-           FONT
-        ========================= */
 
         if (
           document.fonts?.ready
@@ -4200,10 +3993,6 @@ printFullLabel: async (req, res) => {
 
         }
 
-
-        /* =========================
-           IMAGE
-        ========================= */
 
         const images =
           Array.from(
@@ -4247,7 +4036,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       CREATE PDF
+       PDF
     ===================================================== */
 
     const pdfBuffer =
