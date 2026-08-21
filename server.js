@@ -36,6 +36,9 @@ app.get('/api/section/list',(req,res) => sectionController.list(req,res))
 //partMaster
 app.post('/api/partMaster/add', (req,res) => partMasterController.add(req,res))
 app.get('/api/partMaster/list',(req,res) => partMasterController.list(req,res))
+app.get('/api/partMaster/syncMasterPbass', (req,res) => partMasterController.syncMasterPbass(req,res))
+app.post('/api/partMaster/updateMaster', (req,res) => partMasterController.updateMaster(req,res))
+app.post('/api/partMaster/delete', (req,res) => partMasterController.delete(req,res))
 
 //Location
 app.post('/api/location/add', (req,res) => locationController.add(req,res))
