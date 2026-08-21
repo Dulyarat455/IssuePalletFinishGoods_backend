@@ -60,6 +60,8 @@ model PartMaster {
   id Int @id() @default(autoincrement())
   itemNo String
   itemName String
+  itemClass String? 
+  lotSize Int?    
   timeStmp DateTime @default(now())
   status String @default("use")
 }

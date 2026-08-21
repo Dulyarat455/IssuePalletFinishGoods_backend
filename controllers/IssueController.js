@@ -1523,6 +1523,8 @@ printFullLabel: async (req, res) => {
 
     const FIX_OQC_LOT_NO = 'S67258';
     const FIX_ID_PALLET = '26801001';
+    const FIX_ID_LABEL = '26801004';
+    const FIX_LOCATION_DISPLAY = 'H101';
 
     const FIX_LABEL_TYPE =
       (labelType || 'FG').toString().trim() || 'FG';
@@ -1602,16 +1604,9 @@ printFullLabel: async (req, res) => {
     const chunkArray = (arr, size) => {
       const result = [];
 
-      for (
-        let i = 0;
-        i < arr.length;
-        i += size
-      ) {
+      for (let i = 0; i < arr.length; i += size) {
         result.push(
-          arr.slice(
-            i,
-            i + size
-          )
+          arr.slice(i, i + size)
         );
       }
 
@@ -1661,66 +1656,68 @@ printFullLabel: async (req, res) => {
        BARCODE
     ===================================================== */
 
-    const generateBarcodeDataUrl =
-      async (
-        text,
-        opts = {}
-      ) => {
+    const generateBarcodeDataUrl = async (
+      text,
+      opts = {}
+    ) => {
 
-        const png =
-          await bwipjs.toBuffer({
-            bcid: 'code128',
+      const png =
+        await bwipjs.toBuffer({
+          bcid:
+            'code128',
 
-            text:
-              String(text || ''),
+          text:
+            String(text || ''),
 
-            scale:
-              opts.scale || 2,
+          scale:
+            opts.scale || 2,
 
-            height:
-              opts.height || 18,
+          height:
+            opts.height || 18,
 
-            includetext:
-              false,
+          includetext:
+            false,
 
-            textxalign:
-              'center',
+          textxalign:
+            'center',
 
-            backgroundcolor:
-              'FFFFFF'
-          });
+          backgroundcolor:
+            'FFFFFF'
+        });
 
-        return toPngDataUri(
-          png
-        );
-      };
+      return toPngDataUri(
+        png
+      );
+    };
 
 
     /* =====================================================
        QR CODE
     ===================================================== */
 
-    const generateQrDataUrl =
-      async (text) => {
+    const generateQrDataUrl = async (
+      text,
+      width = 150
+    ) => {
 
-        return await QRCode.toDataURL(
-          String(text || ''),
-          {
-            errorCorrectionLevel:
-              'M',
+      return await QRCode.toDataURL(
+        String(text ?? ''),
+        {
+          errorCorrectionLevel:
+            'M',
 
-            margin:
-              1,
+          margin:
+            1,
 
-            width:
-              150
-          }
-        );
-      };
+          width:
+            width
+        }
+      );
+    };
 
 
     /* =====================================================
-       FIXED LENGTH
+       FIX LENGTH
     ===================================================== */
 
     const padRight = (
@@ -1773,13 +1770,11 @@ printFullLabel: async (req, res) => {
           6
         );
 
-
       const scPart =
         padRight(
           '',
           1
         );
-
 
       const diePart =
         padRight(
@@ -1787,13 +1782,11 @@ printFullLabel: async (req, res) => {
           10
         );
 
-
       const lotPart =
         padRight(
           lotNo || '',
           12
         );
-
 
       const qtyPart =
         padLeft(
@@ -1831,13 +1824,11 @@ printFullLabel: async (req, res) => {
           8
         );
 
-
       const diePart =
         padRight(
           dieNo || '',
           5
         );
-
 
       const boxQtyPart =
         padRight(
@@ -1845,13 +1836,11 @@ printFullLabel: async (req, res) => {
           3
         );
 
-
       const oqcPalletPart =
         padRight(
           `${oqcLotNo || ''}/${idPallet || ''}`,
           15
         );
-
 
       const remarkPart =
         padRight(
@@ -1878,7 +1867,6 @@ printFullLabel: async (req, res) => {
       await prisma
         .headerIssueTemp
         .findFirst({
-
           where: {
             id:
               headerIdInt,
@@ -1910,7 +1898,6 @@ printFullLabel: async (req, res) => {
       await prisma
         .location
         .findFirst({
-
           where: {
             id:
               header.locationId,
@@ -1929,9 +1916,7 @@ printFullLabel: async (req, res) => {
       await prisma
         .boxIssueTemp
         .findMany({
-
           where: {
-
             headerId:
               headerIdInt,
 
@@ -1939,9 +1924,7 @@ printFullLabel: async (req, res) => {
               'use',
 
             MapHeaderIssueTempFraction: {
-
               none: {
-
                 headerId:
                   headerIdInt,
 
@@ -1951,15 +1934,12 @@ printFullLabel: async (req, res) => {
             }
           },
 
-
           orderBy: {
             id:
               'asc'
           },
 
-
           select: {
-
             id:
               true,
 
@@ -1998,9 +1978,7 @@ printFullLabel: async (req, res) => {
       await prisma
         .mapHeaderIssueTempFraction
         .findMany({
-
           where: {
-
             headerId:
               headerIdInt,
 
@@ -2008,19 +1986,14 @@ printFullLabel: async (req, res) => {
               'use'
           },
 
-
           orderBy: {
             id:
               'asc'
           },
 
-
           include: {
-
             BoxIssueTemp: {
-
               select: {
-
                 id:
                   true,
 
@@ -2060,18 +2033,14 @@ printFullLabel: async (req, res) => {
       fractionMaps
 
         .filter((map) => {
-
           return (
             map.BoxIssueTemp &&
             map.BoxIssueTemp.status === 'use'
           );
-
         })
 
         .map((map) => {
-
           return {
-
             id:
               map.BoxIssueTemp.id,
 
@@ -2099,7 +2068,6 @@ printFullLabel: async (req, res) => {
             qty:
               map.BoxIssueTemp.qty
           };
-
         });
 
 
@@ -2114,7 +2082,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       GROUP BY SHORT LOT NO
+       GROUP BY LOT
     ===================================================== */
 
     const groupMap =
@@ -2131,7 +2099,6 @@ printFullLabel: async (req, res) => {
           row.lotNo || ''
         );
 
-
       const key =
         shortLotNo || '-';
 
@@ -2141,7 +2108,6 @@ printFullLabel: async (req, res) => {
         groupMap.set(
           key,
           {
-
             lotNo:
               shortLotNo || '-',
 
@@ -2198,30 +2164,26 @@ printFullLabel: async (req, res) => {
 
     normalRows.forEach(
       (row) => {
-
         addRowToGroup(
           row,
           'FULL'
         );
-
       }
     );
 
 
     fractionRows.forEach(
       (row) => {
-
         addRowToGroup(
           row,
           'PARTIAL'
         );
-
       }
     );
 
 
     /* =====================================================
-       PREPARE GROUP
+       GROUP RESULT
     ===================================================== */
 
     let groupedRows =
@@ -2229,7 +2191,6 @@ printFullLabel: async (req, res) => {
         .from(
           groupMap.values()
         )
-
         .map(
           (
             group,
@@ -2256,12 +2217,10 @@ printFullLabel: async (req, res) => {
                     sum,
                     qty
                   ) => {
-
                     return (
                       sum +
                       Number(qty || 0)
                     );
-
                   },
                   0
                 );
@@ -2275,19 +2234,16 @@ printFullLabel: async (req, res) => {
                     sum,
                     qty
                   ) => {
-
                     return (
                       sum +
                       Number(qty || 0)
                     );
-
                   },
                   0
                 );
 
 
             return {
-
               no:
                 index + 1,
 
@@ -2366,13 +2322,12 @@ printFullLabel: async (req, res) => {
             no:
               index + 1
           };
-
         }
       );
 
 
     /* =====================================================
-       HEADER VALUE
+       HEADER VALUES
     ===================================================== */
 
     const itemNoForBarcode =
@@ -2381,18 +2336,30 @@ printFullLabel: async (req, res) => {
       '';
 
 
+    const itemName =
+      header.itemName ||
+      firstAnyRow?.itemName ||
+      '';
+
+
     const idPallet =
       FIX_ID_PALLET;
+
+
+    const idLabel =
+      FIX_ID_LABEL;
 
 
     const oqcLotNo =
       FIX_OQC_LOT_NO;
 
 
+    const displayLocation =
+      FIX_LOCATION_DISPLAY;
+
+
     /* =====================================================
        ITEM BARCODE
-
-       รอบนี้ลดขนาดลง
     ===================================================== */
 
     const topLeftBarcode =
@@ -2409,24 +2376,22 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       ID PALLET BARCODE
+       ID PALLET / LABEL QR
     ===================================================== */
 
-    const idPalletBarcode =
-      await generateBarcodeDataUrl(
-        idPallet,
-        {
-          scale:
-            2.2,
+    const idPalletLabelQrText =
+      `${idPallet}\t${idLabel}`;
 
-          height:
-            16
-        }
+
+    const idPalletLabelQr =
+      await generateQrDataUrl(
+        idPalletLabelQrText,
+        140
       );
 
 
     /* =====================================================
-       QR EACH LOT
+       LOT QR
     ===================================================== */
 
     const groupedRowsWithQr =
@@ -2440,7 +2405,6 @@ printFullLabel: async (req, res) => {
 
       const stockInQrText =
         buildStockInQrText({
-
           oqcLotNo:
             oqcLotNo,
 
@@ -2457,7 +2421,6 @@ printFullLabel: async (req, res) => {
 
       const issueDoQrText =
         buildIssueDoQrText({
-
           lotNo:
             row.lotNo || '',
 
@@ -2485,7 +2448,6 @@ printFullLabel: async (req, res) => {
 
 
       groupedRowsWithQr.push({
-
         ...row,
 
         stockInQrText,
@@ -2498,8 +2460,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       PAGING
-       4 LOT / PAGE
+       4 GROUP / PAGE
     ===================================================== */
 
     const rowsPerPage =
@@ -2602,7 +2563,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       TABLE ROW
+       TABLE ROWS
     ===================================================== */
 
     const renderTableRows =
@@ -2635,73 +2596,47 @@ printFullLabel: async (req, res) => {
           htmlRows.push(`
             <tr class="data-row">
 
-
               <td class="row-no">
-
-                ${escapeHtml(
-                  row.no
-                )}
-
+                ${escapeHtml(row.no)}
               </td>
-
 
               <td class="lot-cell">
-
-                ${escapeHtml(
-                  row.lotNo
-                )}
-
+                ${escapeHtml(row.lotNo)}
               </td>
 
-
               <td class="box-cell">
-
                 ${renderQtyCell(
                   row.fullBoxText
                 )}
-
               </td>
 
-
               <td class="box-cell">
-
                 ${renderQtyCell(
                   row.partialBoxText
                 )}
-
               </td>
 
-
               <td class="total-cell">
-
                 ${escapeHtml(
                   formatNumber(
                     row.totalQty
                   )
                 )}
-
               </td>
 
-
               <td class="qr-cell">
-
                 <img
                   class="qr-img"
                   src="${row.stockInQr}"
                 />
-
               </td>
 
-
               <td class="qr-cell">
-
                 <img
                   class="qr-img"
                   src="${row.issueDoQr}"
                 />
-
               </td>
-
 
             </tr>
           `);
@@ -2729,19 +2664,14 @@ printFullLabel: async (req, res) => {
           '';
 
 
-        const itemName =
-          header.itemName ||
+        const employeeEmpNo =
+          header?.User?.empNo ||
           '';
 
 
-        const locationNo =
-          location?.name ||
+        const employeeName =
+          header?.User?.name ||
           '';
-
-
-        const employeeText =
-          `${header?.User?.empNo || ''} ${header?.User?.name || ''}`
-            .trim();
 
 
         return `
@@ -2750,61 +2680,153 @@ printFullLabel: async (req, res) => {
             <div class="sheet">
 
 
-              <!-- ==========================================
-                   HEADER AREA
-              =========================================== -->
+              <!-- TOP HEADER -->
 
-              <div class="header-area">
+              <div class="top-header">
 
 
-                <!-- ITEM HEADER -->
+                <div class="barcode-wrap">
 
-                <div class="top-header">
+                  <img
+                    class="top-barcode"
+                    src="${topLeftBarcode}"
+                  />
 
-
-                  <!-- ITEM BARCODE -->
-
-                  <div class="barcode-wrap">
-
-                    <img
-                      class="top-barcode"
-                      src="${topLeftBarcode}"
-                    />
-
-                  </div>
+                </div>
 
 
-                  <!-- ITEM NO / NAME -->
+                <div class="top-center">
 
-                  <div class="top-center">
-
-                    <div class="item-no">
-
-                      ${escapeHtml(
-                        itemNoForBarcode
-                      )}
-
-                    </div>
-
-
-                    <div class="item-name">
-
-                      ${escapeHtml(
-                        itemName
-                      )}
-
-                    </div>
-
-                  </div>
-
-
-                  <!-- TYPE -->
-
-                  <div class="top-type">
+                  <div class="item-no">
 
                     ${escapeHtml(
-                      FIX_LABEL_TYPE
+                      itemNoForBarcode
                     )}
+
+                  </div>
+
+
+                  <div class="item-name">
+
+                    ${escapeHtml(
+                      itemName
+                    )}
+
+                  </div>
+
+                </div>
+
+
+                <div class="top-type">
+
+                  ${escapeHtml(
+                    FIX_LABEL_TYPE
+                  )}
+
+                </div>
+
+
+              </div>
+
+
+
+              <!-- LOCATION / OQC -->
+
+              <div class="highlight-row">
+
+
+                <div class="highlight-location">
+
+                  Loc. ${escapeHtml(
+                    displayLocation
+                  )}
+
+                </div>
+
+
+                <div class="highlight-oqc">
+
+                  OQC Lot No.&nbsp;
+                  ${escapeHtml(
+                    oqcLotNo
+                  )}
+
+                </div>
+
+
+                <div></div>
+
+
+              </div>
+
+
+
+              <!-- META + ID QR -->
+
+              <div class="meta-grid">
+
+
+                <div class="meta-left">
+
+
+                  <div class="meta-row">
+
+                    <span class="label">
+                      Date :
+                    </span>
+
+                    <span class="value">
+
+                      ${escapeHtml(
+                        formatDateDMY(
+                          header.dateIssue
+                        )
+                      )}
+
+                    </span>
+
+                  </div>
+
+
+                  <div class="meta-row employee-row">
+
+                    <span class="label">
+                      Employee. :
+                    </span>
+
+                    <span class="value employee-value">
+
+                      <span>
+
+                        ${escapeHtml(
+                          employeeEmpNo
+                        )}
+
+                      </span>
+
+
+                      <span>
+
+                        ${escapeHtml(
+                          employeeName
+                        )}
+
+                      </span>
+
+                    </span>
+
+                  </div>
+
+
+                  <div class="meta-row remark-row">
+
+                    <span class="label">
+                      Remark
+                    </span>
+
+                    <span class="value">
+                      &nbsp;
+                    </span>
 
                   </div>
 
@@ -2813,196 +2835,99 @@ printFullLabel: async (req, res) => {
 
 
 
-                <!-- META -->
-
-                <div class="meta-grid">
+                <div class="meta-center">
 
 
-                  <!-- LEFT -->
+                  <div class="meta-row">
 
-                  <div>
+                    <span class="label">
+                      Dwg.No.
+                    </span>
 
+                    <span class="value">
 
-                    <div class="meta-row">
+                      ${escapeHtml(
+                        dwgNo
+                      )}
 
-                      <span class="label">
-                        Date :
-                      </span>
-
-                      <span class="value">
-
-                        ${escapeHtml(
-                          formatDateDMY(
-                            header.dateIssue
-                          )
-                        )}
-
-                      </span>
-
-                    </div>
-
-
-                    <div class="meta-row">
-
-                      <span class="label">
-                        Location No :
-                      </span>
-
-                      <span class="value">
-
-                        ${escapeHtml(
-                          locationNo
-                        )}
-
-                      </span>
-
-                    </div>
-
-
-                    <div class="meta-row">
-
-                      <span class="label">
-                        OQC Lot No :
-                      </span>
-
-                      <span class="value">
-
-                        ${escapeHtml(
-                          oqcLotNo
-                        )}
-
-                      </span>
-
-                    </div>
-
-
-                    <div class="meta-row">
-
-                      <span class="label">
-                        Employee. :
-                      </span>
-
-                      <span class="value">
-
-                        ${escapeHtml(
-                          employeeText
-                        )}
-
-                      </span>
-
-                    </div>
-
+                    </span>
 
                   </div>
 
 
+                  <div class="meta-row">
 
-                  <!-- CENTER -->
+                    <span class="label">
+                      Die No.
+                    </span>
 
-                  <div>
+                    <span class="value">
 
+                      ${escapeHtml(
+                        dieNo
+                      )}
 
-                    <div class="meta-row">
-
-                      <span class="label">
-                        Dwg.No.
-                      </span>
-
-                      <span class="value">
-
-                        ${escapeHtml(
-                          dwgNo
-                        )}
-
-                      </span>
-
-                    </div>
-
-
-                    <div class="meta-row">
-
-                      <span class="label">
-                        Die No.
-                      </span>
-
-                      <span class="value">
-
-                        ${escapeHtml(
-                          dieNo
-                        )}
-
-                      </span>
-
-                    </div>
-
-
-                    <div class="meta-row">
-
-                      <span class="label">
-                        Total Qty
-                      </span>
-
-                      <span class="value">
-
-                        ${escapeHtml(
-                          formatNumber(
-                            grandTotalQty
-                          )
-                        )}
-
-                        <span class="pcs">
-                          pcs
-                        </span>
-
-                      </span>
-
-                    </div>
-
-
-                    <div class="meta-row">
-
-                      <span class="label">
-                        Remark
-                      </span>
-
-                      <span class="value">
-                        &nbsp;
-                      </span>
-
-                    </div>
-
+                    </span>
 
                   </div>
 
 
+                  <div class="meta-row">
 
-                  <!-- RIGHT -->
+                    <span class="label">
+                      Total Qty
+                    </span>
 
-                  <div class="meta-right">
+                    <span class="value">
+
+                      ${escapeHtml(
+                        formatNumber(
+                          grandTotalQty
+                        )
+                      )}
+
+                      <span class="pcs">
+                        pcs
+                      </span>
+
+                    </span>
+
+                  </div>
 
 
-                    <div class="id-barcode-wrap">
-
-                      <img
-                        class="id-barcode"
-                        src="${idPalletBarcode}"
-                      />
-
-                    </div>
+                </div>
 
 
-                    <div class="id-pallet-text">
+
+                <div class="id-qr-block">
+
+
+                  <img
+                    class="id-qr-img"
+                    src="${idPalletLabelQr}"
+                  />
+
+
+                  <div class="id-info">
+
+                    <div>
 
                       ID Pallet :
-
-                      <b>
-                        ${escapeHtml(
-                          idPallet
-                        )}
-                      </b>
+                      ${escapeHtml(
+                        idPallet
+                      )}
 
                     </div>
 
+
+                    <div>
+
+                      ID Label :
+                      ${escapeHtml(
+                        idLabel
+                      )}
+
+                    </div>
 
                   </div>
 
@@ -3014,9 +2939,7 @@ printFullLabel: async (req, res) => {
 
 
 
-              <!-- ==========================================
-                   TABLE
-              =========================================== -->
+              <!-- TABLE -->
 
               <div class="table-area">
 
@@ -3075,9 +2998,7 @@ printFullLabel: async (req, res) => {
 
 
 
-              <!-- ==========================================
-                   FOOTER
-              =========================================== -->
+              <!-- FOOTER -->
 
               <div class="bottom-bar">
 
@@ -3086,7 +3007,7 @@ printFullLabel: async (req, res) => {
 
                   Normal movement within 3 month.
 
-                  &nbsp;&nbsp;
+                  &nbsp;&nbsp;&nbsp;
 
                   If over, move within :
 
@@ -3145,6 +3066,7 @@ printFullLabel: async (req, res) => {
 
         <meta charset="UTF-8" />
 
+
         <style>
 
 
@@ -3159,12 +3081,14 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           * {
 
             box-sizing:
               border-box;
 
           }
+
 
 
           html,
@@ -3190,12 +3114,14 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           body {
 
             font-size:
               14px;
 
           }
+
 
 
           /* ==========================================
@@ -3219,6 +3145,7 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .page:last-child {
 
             break-after:
@@ -3230,9 +3157,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* ==========================================
-             SHEET
-          =========================================== */
 
           .sheet {
 
@@ -3260,20 +3184,9 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* ==========================================
-             HEADER
-          =========================================== */
-
-          .header-area {
-
-            flex:
-              0 0 auto;
-
-          }
-
 
           /* ==========================================
-             TOP ITEM AREA
+             TOP HEADER
           =========================================== */
 
           .top-header {
@@ -3281,10 +3194,6 @@ printFullLabel: async (req, res) => {
             display:
               grid;
 
-            /*
-              ลด column ของ Barcode
-              จาก 350px ลงมา
-            */
             grid-template-columns:
               300px
               minmax(0, 1fr)
@@ -3296,24 +3205,15 @@ printFullLabel: async (req, res) => {
             align-items:
               start;
 
-            /*
-              ยังเก็บความสูงของ Header เดิมไว้
-              เพื่อไม่ให้ Table ขยับขึ้น
-            */
             min-height:
-              132px;
+              106px;
 
             margin-bottom:
-              19px;
+              3px;
 
           }
 
 
-          /* ==========================================
-             ITEM BARCODE
-
-             รอบนี้ลดเฉพาะ Barcode
-          =========================================== */
 
           .barcode-wrap {
 
@@ -3323,15 +3223,12 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .top-barcode {
 
             display:
               block;
 
-            /*
-              เดิม 335 x 100
-              ลดลงเป็น 285 x 72
-            */
             width:
               285px;
 
@@ -3344,21 +3241,23 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* ==========================================
-             ITEM NO / ITEM NAME
-
-             เหมือนเดิม
-          =========================================== */
 
           .top-center {
 
             padding-top:
               1px;
 
+            min-width:
+              0;
+
           }
 
 
+
           .item-no {
+
+            color:
+              #111;
 
             font-size:
               48px;
@@ -3376,12 +3275,16 @@ printFullLabel: async (req, res) => {
               nowrap;
 
             margin-bottom:
-              15px;
+              13px;
 
           }
 
 
+
           .item-name {
+
+            color:
+              #111;
 
             font-size:
               41px;
@@ -3392,20 +3295,17 @@ printFullLabel: async (req, res) => {
             font-weight:
               900;
 
-            overflow-wrap:
-              anywhere;
-
-            word-break:
-              break-word;
+            white-space:
+              nowrap;
 
           }
 
 
-          /* ==========================================
-             FG
-          =========================================== */
 
           .top-type {
+
+            color:
+              #111;
 
             text-align:
               right;
@@ -3425,6 +3325,92 @@ printFullLabel: async (req, res) => {
           }
 
 
+
+          /* ==========================================
+             LOCATION + OQC
+          =========================================== */
+
+          .highlight-row {
+
+            display:
+              grid;
+
+            grid-template-columns:
+              300px
+              minmax(0, 1fr)
+              78px;
+
+            column-gap:
+              24px;
+
+            align-items:
+              center;
+
+            min-height:
+              51px;
+
+            margin-top:
+              0;
+
+            /*
+              เดิม 7px
+              รอบนี้เพิ่มระยะด้านล่าง
+            */
+            margin-bottom:
+              14px;
+
+          }
+
+
+
+          .highlight-location,
+          .highlight-oqc {
+
+            color:
+              #111;
+
+            font-family:
+              Arial,
+              "TH Sarabun New",
+              sans-serif;
+
+            font-size:
+              41px;
+
+            line-height:
+              1.02;
+
+            font-weight:
+              900;
+
+            white-space:
+              nowrap;
+
+          }
+
+
+
+          .highlight-location {
+
+            padding-left:
+              0;
+
+          }
+
+
+
+          .highlight-oqc {
+
+            padding-left:
+              0;
+
+            min-width:
+              0;
+
+          }
+
+
+
           /* ==========================================
              META
           =========================================== */
@@ -3435,23 +3421,70 @@ printFullLabel: async (req, res) => {
               grid;
 
             grid-template-columns:
-              1.12fr
-              1fr
-              0.92fr;
+              1.05fr
+              0.95fr
+              0.35fr
+              175px;
 
             column-gap:
-              24px;
+              18px;
 
             align-items:
               start;
 
             margin-top:
-              8px;
+              0;
 
             margin-bottom:
-              13px;
+              3px;
 
           }
+
+
+
+          .meta-left {
+
+            grid-column:
+              1;
+
+          }
+
+
+
+          .meta-center {
+
+            grid-column:
+              2;
+
+          }
+
+
+
+          .id-qr-block {
+
+            grid-column:
+              4;
+
+            display:
+              flex;
+
+            flex-direction:
+              column;
+
+            align-items:
+              center;
+
+            justify-content:
+              flex-start;
+
+            margin-top:
+              0;
+
+            padding-top:
+              0;
+
+          }
+
 
 
           .meta-row {
@@ -3470,12 +3503,13 @@ printFullLabel: async (req, res) => {
               baseline;
 
             min-height:
-              24px;
+              22px;
 
             margin-bottom:
-              5px;
+              3px;
 
           }
+
 
 
           .meta-row .label {
@@ -3487,7 +3521,7 @@ printFullLabel: async (req, res) => {
               16px;
 
             line-height:
-              1.2;
+              1.15;
 
             font-weight:
               700;
@@ -3496,6 +3530,7 @@ printFullLabel: async (req, res) => {
               nowrap;
 
           }
+
 
 
           .meta-row .value {
@@ -3507,7 +3542,7 @@ printFullLabel: async (req, res) => {
               16px;
 
             line-height:
-              1.2;
+              1.15;
 
             font-weight:
               800;
@@ -3516,6 +3551,40 @@ printFullLabel: async (req, res) => {
               break-word;
 
           }
+
+
+
+          .employee-row {
+
+            align-items:
+              start;
+
+          }
+
+
+
+          .employee-value {
+
+            display:
+              flex;
+
+            flex-direction:
+              column;
+
+            row-gap:
+              3px;
+
+          }
+
+
+
+          .remark-row {
+
+            margin-top:
+              2px;
+
+          }
+
 
 
           .pcs {
@@ -3529,64 +3598,66 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           /* ==========================================
-             ID PALLET
+             ID QR
           =========================================== */
 
-          .meta-right {
-
-            display:
-              flex;
-
-            flex-direction:
-              column;
-
-            align-items:
-              flex-start;
-
-            justify-content:
-              center;
-
-            padding-top:
-              10px;
-
-          }
-
-
-          .id-barcode-wrap {
-
-            margin:
-              10px 0 5px;
-
-          }
-
-
-          .id-barcode {
+          .id-qr-img {
 
             display:
               block;
 
             width:
-              215px;
+              68px;
 
             height:
-              43px;
+              68px;
 
             object-fit:
-              fill;
+              contain;
+
+            margin:
+              0 auto 4px;
 
           }
 
 
-          .id-pallet-text {
+
+          .id-info {
+
+            width:
+              175px;
 
             font-size:
-              15px;
+              13px;
 
             line-height:
-              1.2;
+              1.3;
+
+            color:
+              #111;
+
+            text-align:
+              center;
+
+            white-space:
+              nowrap;
 
           }
+
+
+
+          .id-info > div {
+
+            text-align:
+              center;
+
+            margin-bottom:
+              2px;
+
+          }
+
 
 
           /* ==========================================
@@ -3602,9 +3673,10 @@ printFullLabel: async (req, res) => {
               100%;
 
             margin-top:
-              21px;
+              5px;
 
           }
+
 
 
           .main-table {
@@ -3621,6 +3693,7 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .main-table th,
           .main-table td {
 
@@ -3628,6 +3701,7 @@ printFullLabel: async (req, res) => {
               1px solid #333;
 
           }
+
 
 
           .main-table th {
@@ -3662,6 +3736,7 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .main-table tbody tr {
 
             height:
@@ -3670,13 +3745,14 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .main-table td {
 
             height:
               82px;
 
             padding:
-              7px 7px;
+              7px;
 
             color:
               #111;
@@ -3699,9 +3775,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* ==========================================
-             COLUMN WIDTH
-          =========================================== */
 
           .col-no {
 
@@ -3709,6 +3782,7 @@ printFullLabel: async (req, res) => {
               56px;
 
           }
+
 
 
           .col-lot {
@@ -3719,12 +3793,14 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .col-box {
 
             width:
               148px;
 
           }
+
 
 
           .col-total {
@@ -3735,6 +3811,7 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .col-qr {
 
             width:
@@ -3743,9 +3820,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* ==========================================
-             ALIGN
-          =========================================== */
 
           .row-no {
 
@@ -3753,6 +3827,7 @@ printFullLabel: async (req, res) => {
               center;
 
           }
+
 
 
           .lot-cell {
@@ -3766,12 +3841,14 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .box-cell {
 
             text-align:
               left;
 
           }
+
 
 
           .total-cell {
@@ -3785,6 +3862,7 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           .cell-line {
 
             line-height:
@@ -3796,9 +3874,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* ==========================================
-             QR
-          =========================================== */
 
           .qr-cell {
 
@@ -3812,6 +3887,7 @@ printFullLabel: async (req, res) => {
               4px !important;
 
           }
+
 
 
           .qr-img {
@@ -3831,9 +3907,6 @@ printFullLabel: async (req, res) => {
           }
 
 
-          /* ==========================================
-             EMPTY ROW
-          =========================================== */
 
           .empty-row td {
 
@@ -3846,8 +3919,11 @@ printFullLabel: async (req, res) => {
           }
 
 
+
           /* ==========================================
              FOOTER
+
+             ขยายเข้าพื้นที่ Total Qty อีกนิด
           =========================================== */
 
           .bottom-bar {
@@ -3856,27 +3932,33 @@ printFullLabel: async (req, res) => {
               0 0 auto;
 
             min-height:
-              28px;
+              35px;
 
             margin-top:
               auto;
 
             padding:
-              8px 2px 0;
+              7px 2px 0;
 
             display:
-              flex;
+              grid;
 
-            align-items:
-              flex-end;
-
-            justify-content:
-              space-between;
+            /*
+              เดิม 79 / 21
+              รอบนี้ 82 / 18
+            */
+            grid-template-columns:
+              minmax(0, 82%)
+              minmax(0, 18%);
 
             column-gap:
-              20px;
+              6px;
+
+            align-items:
+              end;
 
           }
+
 
 
           .bottom-left {
@@ -3884,16 +3966,24 @@ printFullLabel: async (req, res) => {
             color:
               #64748b;
 
+            /*
+              เดิม 23px
+              เพิ่มเป็น 25px
+            */
             font-size:
-              15px;
+              25px;
 
             line-height:
-              1.2;
+              1.05;
+
+            font-weight:
+              400;
 
             white-space:
               nowrap;
 
           }
+
 
 
           .bottom-left b {
@@ -3902,9 +3992,10 @@ printFullLabel: async (req, res) => {
               #111;
 
             font-weight:
-              800;
+              900;
 
           }
+
 
 
           .bottom-right {
@@ -3916,7 +4007,7 @@ printFullLabel: async (req, res) => {
               14px;
 
             line-height:
-              1.2;
+              1.1;
 
             font-weight:
               800;
@@ -3952,7 +4043,6 @@ printFullLabel: async (req, res) => {
 
     browser =
       await puppeteer.launch({
-
         headless:
           true,
 
@@ -3977,7 +4067,7 @@ printFullLabel: async (req, res) => {
 
 
     /* =====================================================
-       WAIT IMAGE + FONT
+       WAIT FONT + IMAGE
     ===================================================== */
 
     await page.evaluate(
@@ -4041,7 +4131,6 @@ printFullLabel: async (req, res) => {
 
     const pdfBuffer =
       await page.pdf({
-
         format:
           'A4',
 
@@ -4055,7 +4144,6 @@ printFullLabel: async (req, res) => {
           true,
 
         margin: {
-
           top:
             '5mm',
 
@@ -4103,11 +4191,9 @@ printFullLabel: async (req, res) => {
     return res
       .status(500)
       .send({
-
         error:
           error?.message ||
           'Cannot generate full label PDF'
-
       });
 
 
@@ -4123,9 +4209,5 @@ printFullLabel: async (req, res) => {
 },
 
 
-
-
-
-    
 
 }
