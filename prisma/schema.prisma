@@ -66,9 +66,22 @@ model PartMaster {
   status String @default("use")
 }
 
+model PalletTemp {
+  id Int @id() @default(autoincrement())
+  date DateTime
+  shift String
+  location String
+  labelType String
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  HeaderIssueTemp HeaderIssueTemp[]
+}
+
+
 model HeaderIssueTemp {
   id Int @id() @default(autoincrement())
   dateIssue DateTime
+  palletTempId Int
   itemNo String
   itemName String
   qtyBox Int
@@ -83,6 +96,7 @@ model HeaderIssueTemp {
   timeStmp DateTime @default(now())
   status String @default("use")
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  PalletTemp PalletTemp @relation(fields: [palletTempId], references: [id], onDelete:  NoAction, onUpdate: NoAction)
   BoxIssueTemp BoxIssueTemp[]
   MapHeaderIssueTempFraction MapHeaderIssueTempFraction[]
   HeaderIssueTempFraction HeaderIssueTempFraction[]
