@@ -6,6 +6,16 @@ const bwipjs = require('bwip-js');
 
 
 module.exports = {
+
+    create: async (req,res)=> {
+      try{
+        const {userId} = req.body;
+
+      }catch(e){
+        return res.status(500).send({ error: e.message });
+      }
+    },
+
     createHeaderTemp: async (req, res)=> {
         try{
             const {

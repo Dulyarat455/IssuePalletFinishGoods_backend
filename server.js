@@ -41,7 +41,9 @@ app.post('/api/partMaster/updateMaster', (req,res) => partMasterController.updat
 app.post('/api/partMaster/delete', (req,res) => partMasterController.delete(req,res))
 
 //Location
-app.post('/api/location/add', (req,res) => locationController.add(req,res))
+app.post('/api/location/addRack', (req,res) => locationController.addRack(req,res))
+app.post('/api/location/addArea', (req,res) => locationController.addArea(req,res))
+app.post('/api/location/mapAreaRack',(req,res) => locationController.mapAreaRackTwo(req,res))
 app.get('/api/location/list',(req,res) => locationController.list(req,res))
 
 //controlLot

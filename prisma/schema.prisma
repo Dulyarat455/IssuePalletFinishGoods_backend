@@ -24,6 +24,7 @@ model User {
   status String @default("use")
   MapGroupSectionUser MapGroupSectionUser[]
   HeaderIssueTemp HeaderIssueTemp[]
+  PalletTemp PalletTemp[]
 }
 
 
@@ -66,15 +67,41 @@ model PartMaster {
   status String @default("use")
 }
 
+model Area {
+  id Int @id() @default(autoincrement())
+  name String
+  status String @default("use")
+  MapAreaRack MapAreaRack[]
+}
+
+model Rack {
+  id Int @id() @default(autoincrement())
+  name String
+  status String @default("use")
+  MapAreaRack MapAreaRack[]
+}
+
+model MapAreaRack {
+  id Int @id() @default(autoincrement())
+  rackId Int
+  areaId Int  
+  status String @default("use")
+  Rack Rack @relation(fields: [rackId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Area Area  @relation(fields: [areaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
 model PalletTemp {
   id Int @id() @default(autoincrement())
   date DateTime
   shift String
   location String
   labelType String
+  userId Int
   timeStmp DateTime @default(now())
   status String @default("use")
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   HeaderIssueTemp HeaderIssueTemp[]
+
 }
 
 
