@@ -7,9 +7,29 @@ const bwipjs = require('bwip-js');
 
 module.exports = {
 
-    create: async (req,res)=> {
+    createPalletTemp: async (req,res)=> {
       try{
-        const {userId} = req.body;
+        const {userId, date, shift, mapAreaRackId, labelType} = req.body;
+
+        const newDatePallet = new Date(date);
+        if (isNaN(newDateIssue.getTime())) {
+          return res.status(400).send({ message: 'invalid_dateIssue' });
+        }
+
+        const createPalletTemp = await prisma.palletTemp.create({
+          data: {
+            date: newDatePallet ,
+            shift: shift,
+            mapAreaRackId: parseInt(mapAreaRackId),
+            labelType: labelType, 
+            userId: parseInt(userId),
+          }
+        });
+
+        return res.send({
+          message: 'create_Pallet_temp_success',
+          data: createPalletTemp,
+        });
 
       }catch(e){
         return res.status(500).send({ error: e.message });
@@ -19,21 +39,21 @@ module.exports = {
     createHeaderTemp: async (req, res)=> {
         try{
             const {
-              dateIssue, itemNo, itemName, qtyBox, shift,
-              groupId, controlLotId, locationId, totalBox,
-              moveMentThreeMonth, userId  
+              dateIssue, itemNo, itemName, shift,
+              groupId, controlLotId, totalBox,
+              moveMentThreeMonth, normalQty, palletId, userId  
             } = req.body;
 
 
-            if( userId == null ||
+            if( 
+                userId == null ||
                 groupId == null ||
-                locationId == null ||
                 controlLotId == null ||
                 dateIssue == null ||
-                qtyBox == null ||
                 totalBox == null ||
+                normalQty == null ||
+                palletId == null ||
                 !itemNo || !itemName || !shift || !moveMentThreeMonth
-                
             ){
               return res.status(400).send({ message: 'missing_required_fields' });
             }
@@ -49,11 +69,11 @@ module.exports = {
                 dateIssue: newDateIssue,
                 itemNo: itemNo,
                 itemName: itemName,
-                qtyBox: parseInt(qtyBox),
                 shift: shift,
                 groupId: parseInt(groupId),
                 controlLotId: parseInt(controlLotId),
                 locationId: parseInt(locationId),
+                normalQty: parseInt(normalQty),
                 totalBox: parseInt(totalBox),
                 moveMentThreeMonth: moveMentThreeMonth,
                 userId: parseInt(userId)

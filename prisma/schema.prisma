@@ -88,20 +88,21 @@ model MapAreaRack {
   status String @default("use")
   Rack Rack @relation(fields: [rackId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   Area Area  @relation(fields: [areaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  PalletTemp PalletTemp[]
 }
 
 model PalletTemp {
   id Int @id() @default(autoincrement())
   date DateTime
   shift String
-  location String
+  mapAreaRackId Int
   labelType String
   userId Int
   timeStmp DateTime @default(now())
   status String @default("use")
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  MapAreaRack MapAreaRack @relation(fields: [mapAreaRackId], references: [id], onDelete: NoAction, onUpdate: NoAction )
   HeaderIssueTemp HeaderIssueTemp[]
-
 }
 
 
@@ -111,7 +112,7 @@ model HeaderIssueTemp {
   palletTempId Int
   itemNo String
   itemName String
-  qtyBox Int
+  qtyBox Int?
   normalQty Int?
   shift String  
   groupId Int
