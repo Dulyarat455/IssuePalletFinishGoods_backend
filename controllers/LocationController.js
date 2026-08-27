@@ -304,6 +304,7 @@ module.exports = {
           rackName: rack.name,
     
           areas: rack.MapAreaRack.map((map) => ({
+            mapAreaRackId: map.id,
             areaId: map.Area.id,
             areaName: map.Area.name
           }))

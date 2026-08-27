@@ -11,8 +11,18 @@ module.exports = {
       try{
         const {userId, date, shift, mapAreaRackId, labelType} = req.body;
 
+        if( 
+          userId == null ||
+          date == null ||
+          mapAreaRackId == null ||
+          !shift || !labelType 
+      ){
+        return res.status(400).send({ message: 'missing_required_fields' });
+      }
+
+
         const newDatePallet = new Date(date);
-        if (isNaN(newDateIssue.getTime())) {
+        if (isNaN(newDatePallet.getTime())) {
           return res.status(400).send({ message: 'invalid_dateIssue' });
         }
 
@@ -36,12 +46,79 @@ module.exports = {
       }
     },
 
+
+    editPalletTemp: async (req,res)=> {
+      try{
+        const { palletTempId, date, shift, 
+          mapAreaRackId, labelType} = req.body;
+
+          if( 
+            palletTempId == null ||
+            date == null ||
+            mapAreaRackId == null ||
+            !shift || !labelType 
+        ){
+          return res.status(400).send({ message: 'missing_required_fields' });
+        }
+
+          const newDatePallet = new Date(date);
+          if (isNaN(newDatePallet.getTime())) {
+            return res.status(400).send({ message: 'invalid_dateIssue' });
+          }
+
+          const updatePalletTemp = await prisma.palletTemp.update({
+            where:{
+                id: parseInt(palletTempId),
+            },
+          data: {
+            date: date,
+            shift: shift,
+            mapAreaRackId: parseInt(mapAreaRackId),
+            labelType: labelType, 
+          }
+        });
+
+        return res.send({
+          message: 'edit_pallet_temp_success',
+          data: updatePalletTemp,
+        })
+
+
+      }catch(e){
+        return res.status(500).send({ error: e.message });
+      }
+    },
+
+
+
+    fetchPalletTemp: async (req,res )=> {
+      try{
+        const { userId } = req.body;
+
+        const palletTemp = await prisma.palletTemp.findFirst({
+            where: {
+                status: 'use',       
+                userId: parseInt(userId)
+            },
+            orderBy: { id: 'desc' }
+          });
+        
+
+          return res.send({ results: palletTemp }); 
+
+      }catch(e){
+        return res.status(500).send({ error: e.message });
+      }
+    },
+
+
     createHeaderTemp: async (req, res)=> {
         try{
             const {
               dateIssue, itemNo, itemName, shift,
               groupId, controlLotId, totalBox,
-              moveMentThreeMonth, normalQty, palletId, userId  
+              moveMentThreeMonth, normalQty, palletTempId
+              , userId  
             } = req.body;
 
 
@@ -52,7 +129,7 @@ module.exports = {
                 dateIssue == null ||
                 totalBox == null ||
                 normalQty == null ||
-                palletId == null ||
+                palletTempId == null ||
                 !itemNo || !itemName || !shift || !moveMentThreeMonth
             ){
               return res.status(400).send({ message: 'missing_required_fields' });
@@ -67,12 +144,12 @@ module.exports = {
             const headerIssueTemp = await prisma.headerIssueTemp.create({
               data: {
                 dateIssue: newDateIssue,
+                palletTempId: parseInt(palletTempId),
                 itemNo: itemNo,
                 itemName: itemName,
                 shift: shift,
                 groupId: parseInt(groupId),
                 controlLotId: parseInt(controlLotId),
-                locationId: parseInt(locationId),
                 normalQty: parseInt(normalQty),
                 totalBox: parseInt(totalBox),
                 moveMentThreeMonth: moveMentThreeMonth,
@@ -165,6 +242,9 @@ module.exports = {
              locationId,
              totalBox,
              moveMentThreeMonth,
+             normalQty,
+             palletTempId,
+             mapAreaRackId
           } = req.body;
 
 
@@ -176,6 +256,9 @@ module.exports = {
             qtyBox == null ||
             totalBox == null ||
             headerTempId == null ||
+            normalQty == null ||
+            palletTempId == null ||
+            mapAreaRackId == null ||
             !itemNo || !itemName || !shift || !moveMentThreeMonth
             
         ){
@@ -203,7 +286,8 @@ module.exports = {
             shift: shift,
             groupId: parseInt(groupId),
             controlLotId: parseInt(controlLotId),
-            locationId: parseInt(locationId),
+            mapAreaRackId: parseInt(locationId),
+            normalQty: parseInt(normalQty),
             totalBox: parseInt(totalBox),
             moveMentThreeMonth: moveMentThreeMonth,         
           }

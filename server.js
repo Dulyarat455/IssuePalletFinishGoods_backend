@@ -52,6 +52,10 @@ app.get('/api/controlLot/list',(req,res) => controlLotController.list(req,res))
 
 
 //issue 
+app.post('/api/issue/createPalletTemp', (req,res) => issueController.createPalletTemp(req,res))
+app.post('/api/issue/fetchPalletTemp', (req,res) => issueController.fetchPalletTemp(req,res))
+app.post('/api/issue/editPalletTemp', (req,res) => issueController.editPalletTemp(req,res))
+
 app.post('/api/issue/fetchHeaderTemp', (req,res) => issueController.fetchHeaderTemp(req,res))
 app.post('/api/issue/createHeaderTemp', (req,res) => issueController.createHeaderTemp(req,res))
 app.post('/api/issue/addNormalQty', (req,res) => issueController.addNormalQty(req,res))
