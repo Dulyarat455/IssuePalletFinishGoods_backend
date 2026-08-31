@@ -167,64 +167,194 @@ module.exports = {
         }
     },
 
-    addNormalQty: async (req,res) => {
-      try{
-          const {normalQty, headTempId} = req.body;
+    // addNormalQty: async (req,res) => {
+    //   try{
+    //       const {normalQty, headTempId} = req.body;
 
-          const headerIssueTemp = await prisma.headerIssueTemp.findFirst({
-            where: {
-                id:  parseInt(headTempId),
-                status: 'use'
-            },
+    //       const headerIssueTemp = await prisma.headerIssueTemp.findFirst({
+    //         where: {
+    //             id:  parseInt(headTempId),
+    //             status: 'use'
+    //         },
             
+    //       });
+
+    //       if (!headerIssueTemp) {
+    //         return res.status(400).send({
+    //           message: 'header_issueTemp_notFound'
+    //         });
+    //       }
+
+    //       const updateHeaderIssueTemp = await prisma.headerIssueTemp.update({
+    //         where:{
+    //             id: parseInt(headTempId)
+    //         },
+    //         data: {
+    //           normalQty: parseInt(normalQty),          
+    //         }
+    //     });
+
+    //     return res.send({
+    //       message: 'add_normalQty_success',
+    //       data: updateHeaderIssueTemp,
+    //     })
+
+    //   }catch(e){
+    //     return res.status(500).send({ error: e.message });
+    //   }
+    // },
+
+
+    fetchHeaderTemp: async (req, res) => {
+      try {
+    
+        const { userId } = req.body;
+    
+        if (userId == null) {
+          return res.status(400).send({
+            message: 'missing_userId'
           });
-
-          if (!headerIssueTemp) {
-            return res.status(400).send({
-              message: 'header_issueTemp_notFound'
-            });
-          }
-
-          const updateHeaderIssueTemp = await prisma.headerIssueTemp.update({
-            where:{
-                id: parseInt(headTempId)
-            },
-            data: {
-              normalQty: parseInt(normalQty),          
-            }
-        });
-
-        return res.send({
-          message: 'add_normalQty_success',
-          data: updateHeaderIssueTemp,
-        })
-
-      }catch(e){
-        return res.status(500).send({ error: e.message });
-      }
-    },
-
-
-
-    fetchHeaderTemp: async (req,res) =>{
-        try{
-
-          const { userId } = req.body;
-
-          const headerIssueTemp = await prisma.headerIssueTemp.findFirst({
-              where: {
-                  status: 'use',       
-                  userId: parseInt(userId)
-              },
-              orderBy: { id: 'desc' }
-            });
-          
-
-            return res.send({ results: headerIssueTemp }); 
-
-        }catch(e){
-          return res.status(500).send({ error: e.message });
         }
+    
+        const userIdInt =
+          parseInt(userId);
+    
+        if (Number.isNaN(userIdInt)) {
+          return res.status(400).send({
+            message: 'invalid_userId'
+          });
+        }
+    
+    
+        // ===============================
+        // Header ทั้งหมดของ User
+        // ===============================
+    
+        const headers =
+          await prisma.headerIssueTemp.findMany({
+            where: {
+              status: 'use',
+              userId: userIdInt
+            },
+    
+            orderBy: {
+              id: 'desc'
+            }
+          });
+    
+    
+        // ===============================
+        // เพิ่มข้อมูล Box ของแต่ละ Header
+        // ===============================
+    
+        const results =
+          await Promise.all(
+            headers.map(async (header) => {
+    
+    
+              // ---------------------------
+              // Header Fraction ล่าสุด
+              // ---------------------------
+    
+              const fractionHeader =
+                await prisma.headerIssueTempFraction.findFirst({
+                  where: {
+                    headerId: header.id,
+                    status: 'use'
+                  },
+    
+                  orderBy: {
+                    id: 'desc'
+                  },
+    
+                  select: {
+                    id: true,
+                    qtyBox: true
+                  }
+                });
+    
+    
+              // ---------------------------
+              // Box ที่ถูก Map เป็น Fraction
+              // ---------------------------
+    
+              const fractionMaps =
+                await prisma.mapHeaderIssueTempFraction.findMany({
+                  where: {
+                    headerId: header.id,
+                    status: 'use'
+                  },
+    
+                  select: {
+                    boxId: true
+                  }
+                });
+    
+    
+              const fractionBoxIds =
+                fractionMaps
+                  .map((x) => x.boxId)
+                  .filter((id) => id != null);
+    
+    
+              // ---------------------------
+              // Box เต็มที่ Scan แล้ว
+              // เอาเฉพาะ Box ที่ไม่ได้อยู่ Fraction
+              // ---------------------------
+    
+              const normalScannedQty =
+                await prisma.boxIssueTemp.count({
+                  where: {
+                    headerId: header.id,
+                    status: 'use',
+    
+                    id:
+                      fractionBoxIds.length > 0
+                        ? {
+                            notIn:
+                              fractionBoxIds
+                          }
+                        : undefined
+                  }
+                });
+    
+    
+              // ---------------------------
+              // Box เศษที่ Scan แล้ว
+              // ---------------------------
+    
+              const fractionScannedQty =
+                fractionMaps.length;
+    
+    
+              return {
+                ...header,
+    
+                fractionQty:
+                  Number(
+                    fractionHeader?.qtyBox || 0
+                  ),
+    
+                normalScannedQty:
+                  Number(normalScannedQty),
+    
+                fractionScannedQty:
+                  Number(fractionScannedQty)
+              };
+            })
+          );
+    
+    
+        return res.send({
+          results: results
+        });
+    
+      } catch (e) {
+    
+        return res.status(500).send({
+          error: e.message
+        });
+      }
     },
 
     editHeaderTemp: async (req,res) =>{

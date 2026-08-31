@@ -43,7 +43,7 @@ app.post('/api/partMaster/delete', (req,res) => partMasterController.delete(req,
 //Location
 app.post('/api/location/addRack', (req,res) => locationController.addRack(req,res))
 app.post('/api/location/addArea', (req,res) => locationController.addArea(req,res))
-app.post('/api/location/mapAreaRack',(req,res) => locationController.mapAreaRackTwo(req,res))
+app.post('/api/location/mapAreaRack',(req,res) => locationController.mapAreaRack(req,res))
 app.get('/api/location/list',(req,res) => locationController.list(req,res))
 
 //controlLot
