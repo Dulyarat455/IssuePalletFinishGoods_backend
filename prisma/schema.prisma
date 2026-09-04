@@ -108,15 +108,12 @@ model PalletTemp {
 
 model HeaderIssueTemp {
   id Int @id() @default(autoincrement())
-  dateIssue DateTime
   palletTempId Int
   itemNo String
   itemName String
-  qtyBox Int?
-  normalQty Int?
-  shift String  
+  normalQty Int? 
   groupId Int
-  controlLotId Int
+  controlLot String
   totalBox Int
   moveMentThreeMonth String
   userId Int

@@ -115,8 +115,8 @@ module.exports = {
     createHeaderTemp: async (req, res)=> {
         try{
             const {
-              dateIssue, itemNo, itemName, shift,
-              groupId, controlLotId, totalBox,
+              itemNo, itemName, 
+              groupId, controlLot, totalBox,
               moveMentThreeMonth, normalQty, palletTempId
               , userId  
             } = req.body;
@@ -125,31 +125,23 @@ module.exports = {
             if( 
                 userId == null ||
                 groupId == null ||
-                controlLotId == null ||
-                dateIssue == null ||
+                !controlLot ||
                 totalBox == null ||
                 normalQty == null ||
                 palletTempId == null ||
-                !itemNo || !itemName || !shift || !moveMentThreeMonth
+                !itemNo || !itemName || !moveMentThreeMonth
             ){
               return res.status(400).send({ message: 'missing_required_fields' });
             }
 
-            const newDateIssue = new Date(dateIssue);
-            if (isNaN(newDateIssue.getTime())) {
-              return res.status(400).send({ message: 'invalid_dateIssue' });
-            }
-
-
+            
             const headerIssueTemp = await prisma.headerIssueTemp.create({
               data: {
-                dateIssue: newDateIssue,
                 palletTempId: parseInt(palletTempId),
                 itemNo: itemNo,
                 itemName: itemName,
-                shift: shift,
                 groupId: parseInt(groupId),
-                controlLotId: parseInt(controlLotId),
+                controlLot: controlLot,
                 normalQty: parseInt(normalQty),
                 totalBox: parseInt(totalBox),
                 moveMentThreeMonth: moveMentThreeMonth,
@@ -362,61 +354,45 @@ module.exports = {
           const {
              headerTempId,
              userId,
-             dateIssue, 
              itemNo,
              itemName,
-             qtyBox,
-             shift,
              groupId,
-             controlLotId,
-             locationId,
+             controlLot,
              totalBox,
              moveMentThreeMonth,
              normalQty,
              palletTempId,
-             mapAreaRackId
           } = req.body;
 
 
           if( userId == null ||
             groupId == null ||
-            locationId == null ||
-            controlLotId == null ||
-            dateIssue == null ||
-            qtyBox == null ||
+            !controlLot ||
             totalBox == null ||
             headerTempId == null ||
             normalQty == null ||
             palletTempId == null ||
-            mapAreaRackId == null ||
-            !itemNo || !itemName || !shift || !moveMentThreeMonth
+            !itemNo || !itemName || !moveMentThreeMonth
             
         ){
           return res.status(400).send({ message: 'missing_required_fields' });
         }
 
 
-        const newDateIssue = new Date(dateIssue);
-        if (isNaN(newDateIssue.getTime())) {
-          return res.status(400).send({ message: 'invalid_dateIssue' });
-        }
 
         // update headTemp issue
 
           const headerIssueTemp = await prisma.headerIssueTemp.update({
             where:{
                 id: parseInt(headerTempId),
+                palletTempId: parseInt(palletTempId),
                 userId: parseInt(userId)
             },
           data: {
-            dateIssue: newDateIssue,
             itemNo: itemNo,
             itemName: itemName,
-            qtyBox: parseInt(qtyBox),
-            shift: shift,
             groupId: parseInt(groupId),
-            controlLotId: parseInt(controlLotId),
-            mapAreaRackId: parseInt(locationId),
+            controlLot: controlLot,
             normalQty: parseInt(normalQty),
             totalBox: parseInt(totalBox),
             moveMentThreeMonth: moveMentThreeMonth,         
@@ -584,114 +560,114 @@ module.exports = {
 
 
 
-  editHeaderTemp: async (req, res) => {
-    try {
-      const {
-        headTempId,
-        dateIssue,
-        itemNo,
-        itemName,
-        qtyBox,
-        shift,
-        groupId,
-        controlLotId,
-        locationId,
-        totalBox,
-        moveMentThreeMonth,
-        userId
-      } = req.body;
+  // editHeaderTemp: async (req, res) => {
+  //   try {
+  //     const {
+  //       headTempId,
+  //       dateIssue,
+  //       itemNo,
+  //       itemName,
+  //       qtyBox,
+  //       shift,
+  //       groupId,
+  //       controlLotId,
+  //       locationId,
+  //       totalBox,
+  //       moveMentThreeMonth,
+  //       userId
+  //     } = req.body;
   
-      if (
-        headTempId == null ||
-        userId == null ||
-        groupId == null ||
-        !shift ||
-        controlLotId == null ||
-        !itemNo ||
-        !itemName ||
-        qtyBox == null ||
-        dateIssue == null ||
-        locationId == null ||
-        totalBox == null ||
-        !moveMentThreeMonth
-      ) {
-        return res.status(400).send({
-          message: 'missing_required_fields'
-        });
-      }
+  //     if (
+  //       headTempId == null ||
+  //       userId == null ||
+  //       groupId == null ||
+  //       !shift ||
+  //       controlLotId == null ||
+  //       !itemNo ||
+  //       !itemName ||
+  //       qtyBox == null ||
+  //       dateIssue == null ||
+  //       locationId == null ||
+  //       totalBox == null ||
+  //       !moveMentThreeMonth
+  //     ) {
+  //       return res.status(400).send({
+  //         message: 'missing_required_fields'
+  //       });
+  //     }
   
-      const headTempIdInt = parseInt(headTempId);
-      const userIdInt = parseInt(userId);
-      const groupIdInt = parseInt(groupId);
-      const controlLotIdInt = parseInt(controlLotId);
-      const locationIdInt = parseInt(locationId);
-      const qtyBoxInt = parseInt(qtyBox);
-      const totalBoxInt = parseInt(totalBox);
+  //     const headTempIdInt = parseInt(headTempId);
+  //     const userIdInt = parseInt(userId);
+  //     const groupIdInt = parseInt(groupId);
+  //     const controlLotIdInt = parseInt(controlLotId);
+  //     const locationIdInt = parseInt(locationId);
+  //     const qtyBoxInt = parseInt(qtyBox);
+  //     const totalBoxInt = parseInt(totalBox);
   
-      if (
-        Number.isNaN(headTempIdInt) ||
-        Number.isNaN(userIdInt) ||
-        Number.isNaN(groupIdInt) ||
-        Number.isNaN(controlLotIdInt) ||
-        Number.isNaN(locationIdInt) ||
-        Number.isNaN(qtyBoxInt) ||
-        Number.isNaN(totalBoxInt)
-      ) {
-        return res.status(400).send({
-          message: 'invalid_number_fields'
-        });
-      }
+  //     if (
+  //       Number.isNaN(headTempIdInt) ||
+  //       Number.isNaN(userIdInt) ||
+  //       Number.isNaN(groupIdInt) ||
+  //       Number.isNaN(controlLotIdInt) ||
+  //       Number.isNaN(locationIdInt) ||
+  //       Number.isNaN(qtyBoxInt) ||
+  //       Number.isNaN(totalBoxInt)
+  //     ) {
+  //       return res.status(400).send({
+  //         message: 'invalid_number_fields'
+  //       });
+  //     }
   
-      const newDateIssue = new Date(dateIssue);
+  //     const newDateIssue = new Date(dateIssue);
   
-      if (isNaN(newDateIssue.getTime())) {
-        return res.status(400).send({
-          message: 'invalid_dateIssue'
-        });
-      }
+  //     if (isNaN(newDateIssue.getTime())) {
+  //       return res.status(400).send({
+  //         message: 'invalid_dateIssue'
+  //       });
+  //     }
   
-      const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
-        where: {
-          id: headTempIdInt,
-          status: 'use'
-        }
-      });
+  //     const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
+  //       where: {
+  //         id: headTempIdInt,
+  //         status: 'use'
+  //       }
+  //     });
   
-      if (!checkHeaderIssueTemp) {
-        return res.status(400).send({
-          message: 'header_issueTemp_notFound'
-        });
-      }
+  //     if (!checkHeaderIssueTemp) {
+  //       return res.status(400).send({
+  //         message: 'header_issueTemp_notFound'
+  //       });
+  //     }
   
-      const headerIssueTemp = await prisma.headerIssueTemp.update({
-        where: {
-          id: headTempIdInt
-        },
-        data: {
-          dateIssue: newDateIssue,
-          itemNo: itemNo,
-          itemName: itemName,
-          qtyBox: qtyBoxInt,
-          shift: shift,
-          groupId: groupIdInt,
-          controlLotId: controlLotIdInt,
-          locationId: locationIdInt,
-          totalBox: totalBoxInt,
-          moveMentThreeMonth: moveMentThreeMonth,
-          userId: userIdInt
-        }
-      });
+  //     const headerIssueTemp = await prisma.headerIssueTemp.update({
+  //       where: {
+  //         id: headTempIdInt
+  //       },
+  //       data: {
+  //         dateIssue: newDateIssue,
+  //         itemNo: itemNo,
+  //         itemName: itemName,
+  //         qtyBox: qtyBoxInt,
+  //         shift: shift,
+  //         groupId: groupIdInt,
+  //         controlLotId: controlLotIdInt,
+  //         locationId: locationIdInt,
+  //         totalBox: totalBoxInt,
+  //         moveMentThreeMonth: moveMentThreeMonth,
+  //         userId: userIdInt
+  //       }
+  //     });
   
-      return res.send({
-        message: 'edit_issue_header_temp_success',
-        data: headerIssueTemp
-      });
-    } catch (e) {
-      return res.status(500).send({
-        error: e.message
-      });
-    }
-  },
+  //     return res.send({
+  //       message: 'edit_issue_header_temp_success',
+  //       data: headerIssueTemp
+  //     });
+  //   } catch (e) {
+  //     return res.status(500).send({
+  //       error: e.message
+  //     });
+  //   }
+  // },
 
 
   editBoxIssueTemp: async (req, res) => {
