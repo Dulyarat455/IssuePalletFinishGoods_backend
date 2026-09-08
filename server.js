@@ -77,7 +77,7 @@ app.post('/api/issue/deleteheaderFractionTemp', (req, res) => issueController.de
 app.post('/api/issue/deleteAllFractionBoxTemp', (req, res) => issueController.deleteAllFractionBoxTemp(req, res));
 app.post('/api/issue/deleteFractionBoxTemp', (req, res) => issueController.deleteFractionBoxTemp(req, res));
 app.post('/api/issue/printFullLabel', (req, res) => issueController.printFullLabel(req, res));
-
+app.post('/api/issue/deletePalletTemp',(req, res) => issueController.deletePalletTemp(req,res));
 
 
 app.listen(3001, () => {

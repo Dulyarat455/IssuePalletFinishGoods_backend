@@ -25,6 +25,8 @@ model User {
   MapGroupSectionUser MapGroupSectionUser[]
   HeaderIssueTemp HeaderIssueTemp[]
   PalletTemp PalletTemp[]
+  Pallet Pallet[]
+  HeaderClosedTemp HeaderClosedTemp[]
 }
 
 
@@ -89,6 +91,7 @@ model MapAreaRack {
   Rack Rack @relation(fields: [rackId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   Area Area  @relation(fields: [areaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   PalletTemp PalletTemp[]
+  Pallet Pallet[]
 }
 
 model PalletTemp {
@@ -106,6 +109,23 @@ model PalletTemp {
 }
 
 
+model Pallet {
+  id Int @id() @default(autoincrement())
+  PalletNoId Int
+  date DateTime 
+  shift String 
+  mapAreaRackId Int
+  labelType String
+  userId Int
+  timeStmp DateTime @default(now())
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  MapAreaRack MapAreaRack @relation(fields: [mapAreaRackId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  HeaderIssue HeaderIssue[]
+
+}
+
+
+
 model HeaderIssueTemp {
   id Int @id() @default(autoincrement())
   palletTempId Int
@@ -113,7 +133,7 @@ model HeaderIssueTemp {
   itemName String
   normalQty Int? 
   groupId Int
-  controlLot String
+  controlLot String?
   totalBox Int
   moveMentThreeMonth String
   userId Int
@@ -128,23 +148,21 @@ model HeaderIssueTemp {
 
 model HeaderIssue {
   id Int @id() @default(autoincrement())
-  dateIssue DateTime
+  palletId Int
   itemNo String
   itemName String
-  qtyBox Int
   normalQty Int
-  shift String
+  fractionQty Int
   groupId Int
-  controlLotId Int
-  idPallet String
-  locationId Int
-  totalBox Int
+  controlLot String
   moveMentThreeMonth String
   userId Int
   timeStmp DateTime @default(now())
   status String @default("use")
   MapHeaderIssueFraction MapHeaderIssueFraction[]
-  HeaderIssueFraction HeaderIssueFraction[]
+  Pallet Pallet @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Box Box[]
+  HeaderClosedTemp HeaderClosedTemp[]
 }
 
 model ControlLot {
@@ -192,8 +210,6 @@ model HeaderIssueFraction{
   headerId Int
   timeStmp DateTime @default(now())
   status String @default("use")
-  MapHeaderIssueFraction MapHeaderIssueFraction[]
-  HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction )
 }
 
 
@@ -213,32 +229,19 @@ model MapHeaderIssueTempFraction {
 model MapHeaderIssueFraction {
   id Int @id() @default(autoincrement())
   headerId Int
-  headerFractionId Int
   boxId Int
   timeStmp DateTime @default(now())
   status String @default("use")
-  HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id])
-  HeaderIssueFraction HeaderIssueFraction @relation(fields: [headerFractionId], references: [id])
+  HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Box Box @relation(fields: [boxId], references: [id], onDelete: NoAction, onUpdate: NoAction )
 }
 
-
-model HeaderClosedTemp {
-  id Int @id() @default(autoincrement())
-  boxId Int
-  status String @default("use")
-}
-
-model HeaderClosed {
-  id Int @id() @default(autoincrement())
-  closedNO String
-  status String @default("use")
-}
 
 
 model Box {
   id Int @id() @default(autoincrement())
-  headerIssueId Int
-  headerClosedId Int
+  headId Int
+  headClosedId Int?
   itemNo String
   itemName String
   wosNo String
@@ -246,8 +249,37 @@ model Box {
   dieNo String
   lotNo String
   qty Int
+  timeStmp DateTime @default(now())
   status String @default("use") 
+  HeaderIssue HeaderIssue @relation(fields: [headId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  MapHeaderIssueFraction MapHeaderIssueFraction[]
+  HeaderClosedTemp HeaderClosedTemp[]
+
 }
+
+
+model HeaderClosedTemp {
+  id Int @id() @default(autoincrement())
+  boxId Int
+  headId Int
+  userId Int 
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  Box Box @relation(fields: [boxId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  HeaderIssue HeaderIssue @relation(fields: [headId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+
+}
+
+model HeaderClosed {
+  id Int @id() @default(autoincrement())
+  closedNo String
+  timeStmp DateTime @default(now())
+  status String @default("use")
+}
+
+
+
 
 
 

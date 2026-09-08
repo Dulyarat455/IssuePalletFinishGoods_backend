@@ -1,2740 +1,2228 @@
-const {PrismaClient} = require('@prisma/client');
+const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-const QRCode = require('qrcode');
-const bwipjs = require('bwip-js');
-
+const QRCode = require("qrcode");
+const bwipjs = require("bwip-js");
 
 module.exports = {
-
-    createPalletTemp: async (req,res)=> {
-      try{
-        const {userId, date, shift, mapAreaRackId, labelType} = req.body;
-
-        if( 
-          userId == null ||
-          date == null ||
-          mapAreaRackId == null ||
-          !shift || !labelType 
-      ){
-        return res.status(400).send({ message: 'missing_required_fields' });
-      }
-
-
-        const newDatePallet = new Date(date);
-        if (isNaN(newDatePallet.getTime())) {
-          return res.status(400).send({ message: 'invalid_dateIssue' });
-        }
-
-        const createPalletTemp = await prisma.palletTemp.create({
-          data: {
-            date: newDatePallet ,
-            shift: shift,
-            mapAreaRackId: parseInt(mapAreaRackId),
-            labelType: labelType, 
-            userId: parseInt(userId),
-          }
-        });
-
-        return res.send({
-          message: 'create_Pallet_temp_success',
-          data: createPalletTemp,
-        });
-
-      }catch(e){
-        return res.status(500).send({ error: e.message });
-      }
-    },
-
-
-    editPalletTemp: async (req,res)=> {
-      try{
-        const { palletTempId, date, shift, 
-          mapAreaRackId, labelType} = req.body;
-
-          if( 
-            palletTempId == null ||
-            date == null ||
-            mapAreaRackId == null ||
-            !shift || !labelType 
-        ){
-          return res.status(400).send({ message: 'missing_required_fields' });
-        }
-
-          const newDatePallet = new Date(date);
-          if (isNaN(newDatePallet.getTime())) {
-            return res.status(400).send({ message: 'invalid_dateIssue' });
-          }
-
-          const updatePalletTemp = await prisma.palletTemp.update({
-            where:{
-                id: parseInt(palletTempId),
-            },
-          data: {
-            date: date,
-            shift: shift,
-            mapAreaRackId: parseInt(mapAreaRackId),
-            labelType: labelType, 
-          }
-        });
-
-        return res.send({
-          message: 'edit_pallet_temp_success',
-          data: updatePalletTemp,
-        })
-
-
-      }catch(e){
-        return res.status(500).send({ error: e.message });
-      }
-    },
-
-
-
-    fetchPalletTemp: async (req,res )=> {
-      try{
-        const { userId } = req.body;
-
-        const palletTemp = await prisma.palletTemp.findFirst({
-            where: {
-                status: 'use',       
-                userId: parseInt(userId)
-            },
-            orderBy: { id: 'desc' }
-          });
-        
-
-          return res.send({ results: palletTemp }); 
-
-      }catch(e){
-        return res.status(500).send({ error: e.message });
-      }
-    },
-
-
-    createHeaderTemp: async (req, res)=> {
-        try{
-            const {
-              itemNo, itemName, 
-              groupId, controlLot, totalBox,
-              moveMentThreeMonth, normalQty, palletTempId
-              , userId  
-            } = req.body;
-
-
-            if( 
-                userId == null ||
-                groupId == null ||
-                !controlLot ||
-                totalBox == null ||
-                normalQty == null ||
-                palletTempId == null ||
-                !itemNo || !itemName || !moveMentThreeMonth
-            ){
-              return res.status(400).send({ message: 'missing_required_fields' });
-            }
-
-            
-            const headerIssueTemp = await prisma.headerIssueTemp.create({
-              data: {
-                palletTempId: parseInt(palletTempId),
-                itemNo: itemNo,
-                itemName: itemName,
-                groupId: parseInt(groupId),
-                controlLot: controlLot,
-                normalQty: parseInt(normalQty),
-                totalBox: parseInt(totalBox),
-                moveMentThreeMonth: moveMentThreeMonth,
-                userId: parseInt(userId)
-              }
-            });
-
-            return res.send({
-              message: 'add_issue_header_temp_success',
-              data: headerIssueTemp,
-            });
-
-        }catch(e){
-          return res.status(500).send({ error: e.message });
-        }
-    },
-
-    // addNormalQty: async (req,res) => {
-    //   try{
-    //       const {normalQty, headTempId} = req.body;
-
-    //       const headerIssueTemp = await prisma.headerIssueTemp.findFirst({
-    //         where: {
-    //             id:  parseInt(headTempId),
-    //             status: 'use'
-    //         },
-            
-    //       });
-
-    //       if (!headerIssueTemp) {
-    //         return res.status(400).send({
-    //           message: 'header_issueTemp_notFound'
-    //         });
-    //       }
-
-    //       const updateHeaderIssueTemp = await prisma.headerIssueTemp.update({
-    //         where:{
-    //             id: parseInt(headTempId)
-    //         },
-    //         data: {
-    //           normalQty: parseInt(normalQty),          
-    //         }
-    //     });
-
-    //     return res.send({
-    //       message: 'add_normalQty_success',
-    //       data: updateHeaderIssueTemp,
-    //     })
-
-    //   }catch(e){
-    //     return res.status(500).send({ error: e.message });
-    //   }
-    // },
-
-
-    fetchHeaderTemp: async (req, res) => {
-      try {
-    
-        const { userId } = req.body;
-    
-        if (userId == null) {
-          return res.status(400).send({
-            message: 'missing_userId'
-          });
-        }
-    
-        const userIdInt =
-          parseInt(userId);
-    
-        if (Number.isNaN(userIdInt)) {
-          return res.status(400).send({
-            message: 'invalid_userId'
-          });
-        }
-    
-    
-        // ===============================
-        // Header ทั้งหมดของ User
-        // ===============================
-    
-        const headers =
-          await prisma.headerIssueTemp.findMany({
-            where: {
-              status: 'use',
-              userId: userIdInt
-            },
-    
-            orderBy: {
-              id: 'desc'
-            }
-          });
-    
-    
-        // ===============================
-        // เพิ่มข้อมูล Box ของแต่ละ Header
-        // ===============================
-    
-        const results =
-          await Promise.all(
-            headers.map(async (header) => {
-    
-    
-              // ---------------------------
-              // Header Fraction ล่าสุด
-              // ---------------------------
-    
-              const fractionHeader =
-                await prisma.headerIssueTempFraction.findFirst({
-                  where: {
-                    headerId: header.id,
-                    status: 'use'
-                  },
-    
-                  orderBy: {
-                    id: 'desc'
-                  },
-    
-                  select: {
-                    id: true,
-                    qtyBox: true
-                  }
-                });
-    
-    
-              // ---------------------------
-              // Box ที่ถูก Map เป็น Fraction
-              // ---------------------------
-    
-              const fractionMaps =
-                await prisma.mapHeaderIssueTempFraction.findMany({
-                  where: {
-                    headerId: header.id,
-                    status: 'use'
-                  },
-    
-                  select: {
-                    boxId: true
-                  }
-                });
-    
-    
-              const fractionBoxIds =
-                fractionMaps
-                  .map((x) => x.boxId)
-                  .filter((id) => id != null);
-    
-    
-              // ---------------------------
-              // Box เต็มที่ Scan แล้ว
-              // เอาเฉพาะ Box ที่ไม่ได้อยู่ Fraction
-              // ---------------------------
-    
-              const normalScannedQty =
-                await prisma.boxIssueTemp.count({
-                  where: {
-                    headerId: header.id,
-                    status: 'use',
-    
-                    id:
-                      fractionBoxIds.length > 0
-                        ? {
-                            notIn:
-                              fractionBoxIds
-                          }
-                        : undefined
-                  }
-                });
-    
-    
-              // ---------------------------
-              // Box เศษที่ Scan แล้ว
-              // ---------------------------
-    
-              const fractionScannedQty =
-                fractionMaps.length;
-    
-    
-              return {
-                ...header,
-    
-                fractionQty:
-                  Number(
-                    fractionHeader?.qtyBox || 0
-                  ),
-    
-                normalScannedQty:
-                  Number(normalScannedQty),
-    
-                fractionScannedQty:
-                  Number(fractionScannedQty)
-              };
-            })
-          );
-    
-    
-        return res.send({
-          results: results
-        });
-    
-      } catch (e) {
-    
-        return res.status(500).send({
-          error: e.message
-        });
-      }
-    },
-
-    editHeaderTemp: async (req,res) =>{
-        try{
-          const {
-             headerTempId,
-             userId,
-             itemNo,
-             itemName,
-             groupId,
-             controlLot,
-             totalBox,
-             moveMentThreeMonth,
-             normalQty,
-             palletTempId,
-          } = req.body;
-
-
-          if( userId == null ||
-            groupId == null ||
-            !controlLot ||
-            totalBox == null ||
-            headerTempId == null ||
-            normalQty == null ||
-            palletTempId == null ||
-            !itemNo || !itemName || !moveMentThreeMonth
-            
-        ){
-          return res.status(400).send({ message: 'missing_required_fields' });
-        }
-
-
-
-        // update headTemp issue
-
-          const headerIssueTemp = await prisma.headerIssueTemp.update({
-            where:{
-                id: parseInt(headerTempId),
-                palletTempId: parseInt(palletTempId),
-                userId: parseInt(userId)
-            },
-          data: {
-            itemNo: itemNo,
-            itemName: itemName,
-            groupId: parseInt(groupId),
-            controlLot: controlLot,
-            normalQty: parseInt(normalQty),
-            totalBox: parseInt(totalBox),
-            moveMentThreeMonth: moveMentThreeMonth,         
-          }
-        });
-
-        return res.send({
-          message: 'edit_issue_header_temp_success',
-          data: headerIssueTemp,
-        })
-
-        }catch(e){
-          return res.status(500).send({ error: e.message });
-        }
-    },
-
-    createBoxTemp: async (req,res) =>{
-        try{
-
-          const {
-            headTempId,
-            itemNo, 
-            itemName,
-            wosNo,
-            dwg,
-            dieNo,
-            lotNo,
-            qty
-         } = req.body ;
-
-
-         if (
-          headTempId == null ||
-          !itemNo  ||
-          !itemName  ||
-          !wosNo  ||
-          !dwg  ||
-          !dieNo  ||
-          !lotNo  ||
-          qty == null 
-        ) {
-          return res.status(400).send({ message: 'missing_required_fields' });
-        }
-
-
-        const checkBoxByItemMaster = await prisma.partMaster.findFirst({
-          where:{
-            itemNo: itemNo,
-            status: "use"
-          }
-        })
-
-        if(!checkBoxByItemMaster){
-          return res.status(400).send({ message: 'ไม่มี ItemNo และ ItemName นี้ในระบบ'});
-        }
-
-        
-        //  //check in table box before scan receive temp 
-        //  const  checkBoxIssue = await prisma.box.findFirst({
-        //   where: {
-        //       wosNo: wosNo,
-        //       BoxState: "wait",
-        //       status: "use"
-        //   }
-        // }) 
-        // if(checkBoxIssue){
-        //   return res.status(400).send({ message: 'WOS No นี้ทำการ Issue แล้ว'});
-        // }
-
-
-        const  checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
-            where:{
-            wosNo: wosNo,
-            status: "use"
-            }
-        }) 
-
-        if(checkBoxRepeat){
-        return res.status(400).send({ message: 'WOS No นี้ถูก Scan ไปแล้ว'});
-        }
-
-
-        const boxIssueTemp = await prisma.boxIssueTemp.create({
-          data: {
-            headerId: parseInt(headTempId) ,
-            itemNo: itemNo,
-            itemName: itemName,
-            wosNo: wosNo,
-            dwg: dwg,
-            dieNo: dieNo,
-            lotNo: lotNo,
-            qty: parseInt(qty)
-          }
-        });
-
-        return res.send({
-          message: 'add_box_issue_temp_success',
-          data: boxIssueTemp,
-      });
-
-
-
-        }catch(e){
-          return res.status(500).send({ error: e.message });
-        }
-    },
-
-
-    fetchBoxTempByHeadId: async (req, res) => {
-      try {
-        const { headerId } = req.body;
-    
-        if (headerId == null) {
-          return res.status(400).send({
-            message: 'missing_required_fields'
-          });
-        }
-    
-        const headerIdInt = parseInt(headerId);
-    
-        if (Number.isNaN(headerIdInt)) {
-          return res.status(400).send({
-            message: 'invalid_headerId'
-          });
-        }
-    
-        const rows = await prisma.boxIssueTemp.findMany({
-          where: {
-            status: 'use',
-            headerId: headerIdInt,
-    
-            // ไม่เอา Box ที่ถูก map เป็น Box เศษแล้ว
-            MapHeaderIssueTempFraction: {
-              none: {
-                headerId: headerIdInt,
-                status: 'use',
-              },
-            },
-          },
-          orderBy: {
-            id: 'asc',
-          },
-          select: {
-            id: true,
-            headerId: true,
-            itemNo: true,
-            itemName: true,
-            wosNo: true,
-            dwg: true,
-            dieNo: true,
-            lotNo: true,
-            qty: true,
-          },
-        });
-    
-        return res.send({
-          results: rows,
-        });
-      } catch (e) {
-        return res.status(500).send({
-          error: e.message,
-        });
-      }
-    },
-
-
-
-  // editHeaderTemp: async (req, res) => {
-  //   try {
-  //     const {
-  //       headTempId,
-  //       dateIssue,
-  //       itemNo,
-  //       itemName,
-  //       qtyBox,
-  //       shift,
-  //       groupId,
-  //       controlLotId,
-  //       locationId,
-  //       totalBox,
-  //       moveMentThreeMonth,
-  //       userId
-  //     } = req.body;
-  
-  //     if (
-  //       headTempId == null ||
-  //       userId == null ||
-  //       groupId == null ||
-  //       !shift ||
-  //       controlLotId == null ||
-  //       !itemNo ||
-  //       !itemName ||
-  //       qtyBox == null ||
-  //       dateIssue == null ||
-  //       locationId == null ||
-  //       totalBox == null ||
-  //       !moveMentThreeMonth
-  //     ) {
-  //       return res.status(400).send({
-  //         message: 'missing_required_fields'
-  //       });
-  //     }
-  
-  //     const headTempIdInt = parseInt(headTempId);
-  //     const userIdInt = parseInt(userId);
-  //     const groupIdInt = parseInt(groupId);
-  //     const controlLotIdInt = parseInt(controlLotId);
-  //     const locationIdInt = parseInt(locationId);
-  //     const qtyBoxInt = parseInt(qtyBox);
-  //     const totalBoxInt = parseInt(totalBox);
-  
-  //     if (
-  //       Number.isNaN(headTempIdInt) ||
-  //       Number.isNaN(userIdInt) ||
-  //       Number.isNaN(groupIdInt) ||
-  //       Number.isNaN(controlLotIdInt) ||
-  //       Number.isNaN(locationIdInt) ||
-  //       Number.isNaN(qtyBoxInt) ||
-  //       Number.isNaN(totalBoxInt)
-  //     ) {
-  //       return res.status(400).send({
-  //         message: 'invalid_number_fields'
-  //       });
-  //     }
-  
-  //     const newDateIssue = new Date(dateIssue);
-  
-  //     if (isNaN(newDateIssue.getTime())) {
-  //       return res.status(400).send({
-  //         message: 'invalid_dateIssue'
-  //       });
-  //     }
-  
-  //     const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
-  //       where: {
-  //         id: headTempIdInt,
-  //         status: 'use'
-  //       }
-  //     });
-  
-  //     if (!checkHeaderIssueTemp) {
-  //       return res.status(400).send({
-  //         message: 'header_issueTemp_notFound'
-  //       });
-  //     }
-  
-  //     const headerIssueTemp = await prisma.headerIssueTemp.update({
-  //       where: {
-  //         id: headTempIdInt
-  //       },
-  //       data: {
-  //         dateIssue: newDateIssue,
-  //         itemNo: itemNo,
-  //         itemName: itemName,
-  //         qtyBox: qtyBoxInt,
-  //         shift: shift,
-  //         groupId: groupIdInt,
-  //         controlLotId: controlLotIdInt,
-  //         locationId: locationIdInt,
-  //         totalBox: totalBoxInt,
-  //         moveMentThreeMonth: moveMentThreeMonth,
-  //         userId: userIdInt
-  //       }
-  //     });
-  
-  //     return res.send({
-  //       message: 'edit_issue_header_temp_success',
-  //       data: headerIssueTemp
-  //     });
-  //   } catch (e) {
-  //     return res.status(500).send({
-  //       error: e.message
-  //     });
-  //   }
-  // },
-
-
-  editBoxIssueTemp: async (req, res) => {
+  createPalletTemp: async (req, res) => {
     try {
-      const { headTempId, boxTempId, qty } = req.body;
-  
+      const { userId, date, shift, mapAreaRackId, labelType } = req.body;
+
       if (
-        headTempId == null ||
-        boxTempId == null ||
-        qty == null
+        userId == null ||
+        date == null ||
+        mapAreaRackId == null ||
+        !shift ||
+        !labelType
       ) {
-        return res.status(400).send({
-          message: 'missing_required_fields'
-        });
+        return res.status(400).send({ message: "missing_required_fields" });
       }
-  
-      const headTempIdInt = parseInt(headTempId);
-      const boxTempIdInt = parseInt(boxTempId);
-      const qtyInt = parseInt(qty);
-  
-      if (
-        Number.isNaN(headTempIdInt) ||
-        Number.isNaN(boxTempIdInt) ||
-        Number.isNaN(qtyInt)
-      ) {
-        return res.status(400).send({
-          message: 'invalid_number_fields'
-        });
+
+      const newDatePallet = new Date(date);
+      if (isNaN(newDatePallet.getTime())) {
+        return res.status(400).send({ message: "invalid_dateIssue" });
       }
-  
-      if (qtyInt <= 0) {
-        return res.status(400).send({
-          message: 'invalid_qty'
-        });
-      }
-  
-      
-    
-      const checkBoxIssueTemp = await prisma.boxIssueTemp.findFirst({
-        where: {
-          id: boxTempIdInt,
-          headerId: headTempIdInt,
-          status: 'use'
-        }
-      });
-  
-      if (!checkBoxIssueTemp) {
-        return res.status(400).send({
-          message: 'box_issueTemp_notFound'
-        });
-      }
-  
-      const update = await prisma.boxIssueTemp.update({
-        where: {
-          id: boxTempIdInt
-        },
+
+      const createPalletTemp = await prisma.palletTemp.create({
         data: {
-          qty: qtyInt
-        }
+          date: newDatePallet,
+          shift: shift,
+          mapAreaRackId: parseInt(mapAreaRackId),
+          labelType: labelType,
+          userId: parseInt(userId),
+        },
       });
-  
+
       return res.send({
-        message: 'update_BoxTemp_success',
-        data: update
+        message: "create_Pallet_temp_success",
+        data: createPalletTemp,
       });
     } catch (e) {
-      return res.status(500).send({
-        error: e.message
+      return res.status(500).send({ error: e.message });
+    }
+  },
+
+  editPalletTemp: async (req, res) => {
+    try {
+      const { palletTempId, date, shift, mapAreaRackId, labelType } = req.body;
+
+      if (
+        palletTempId == null ||
+        date == null ||
+        mapAreaRackId == null ||
+        !shift ||
+        !labelType
+      ) {
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
+
+      const newDatePallet = new Date(date);
+      if (isNaN(newDatePallet.getTime())) {
+        return res.status(400).send({ message: "invalid_dateIssue" });
+      }
+
+      const updatePalletTemp = await prisma.palletTemp.update({
+        where: {
+          id: parseInt(palletTempId),
+        },
+        data: {
+          date: date,
+          shift: shift,
+          mapAreaRackId: parseInt(mapAreaRackId),
+          labelType: labelType,
+        },
       });
+
+      return res.send({
+        message: "edit_pallet_temp_success",
+        data: updatePalletTemp,
+      });
+    } catch (e) {
+      return res.status(500).send({ error: e.message });
     }
   },
 
 
-createHeaderTempFraction : async (req,res) =>{
-  try{
-        const { headTempId, qtyBox } = req.body;
 
-        if (
-          headTempId == null || 
-          qtyBox == null 
-        ) {
-          return res.status(400).send({ message: 'missing_required_fields' });
-        }
+  deletePalletTemp: async (req, res) => {
+    try {
+      const { palletTempId } = req.body;
 
-        const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
-          where: {
-            id: parseInt(headTempId) ,
-            status: 'use',
-          },
+      // =====================================================
+      // VALIDATE
+      // =====================================================
+
+      if (palletTempId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
         });
+      }
 
-        if (!checkHeaderIssueTemp) {
-          return res.status(400).send({ message: 'header_issueTemp_notFound' });
-        }  
+      const palletTempIdInt = parseInt(palletTempId);
 
-        const headerIssueTempFraction = await prisma.headerIssueTempFraction.create({
-          data: {
-            headerId: parseInt(headTempId),
-            qtyBox: parseInt(qtyBox)
-          },
-          
+      if (Number.isNaN(palletTempIdInt)) {
+        return res.status(400).send({
+          message: "invalid_palletTempId",
         });
+      }
 
-      return res.send({
-          message: 'create_headerTempFraction_success',
-          data: headerIssueTempFraction,
+      // =====================================================
+      // CHECK PALLET
+      // =====================================================
+
+      const checkPallet = await prisma.palletTemp.findFirst({
+        where: {
+          id: palletTempIdInt,
+
+          status: "use",
+        },
       });
 
+      if (!checkPallet) {
+        return res.status(404).send({
+          message: "pallet_temp_not_found",
+        });
+      }
 
-  }catch(e){
-    return res.status(500).send({ error: e.message });
-  }
-},
+      // =====================================================
+      // DELETE TRANSACTION
+      // =====================================================
 
+      const result = await prisma.$transaction(async (tx) => {
+        // =================================================
+        // 1) FIND HEADER ทั้งหมดของ PALLET นี้
+        // =================================================
 
-mapFractionTemp : async (req,res) =>{
-  try{
-      const {headTempId, headFractionId, 
+        const headers = await tx.headerIssueTemp.findMany({
+          where: {
+            palletTempId: palletTempIdInt,
+          },
+
+          select: {
+            id: true,
+          },
+        });
+
+        // เอาไว้ Summary หลัง Delete
+
+        let deletedMapCount = 0;
+
+        let deletedFractionHeaderCount = 0;
+
+        let deletedBoxCount = 0;
+
+        let deletedHeaderCount = 0;
+
+        // =================================================
+        // 2) LOOP HEADER ทีละตัว
+        // =================================================
+
+        for (const header of headers) {
+          const headerTempIdInt = Number(header.id);
+
+          // ===============================================
+          // 2.1 DELETE MAP FRACTION ก่อน
+          // ===============================================
+
+          const deletedMap = await tx.mapHeaderIssueTempFraction.deleteMany({
+            where: {
+              headerId: headerTempIdInt,
+            },
+          });
+
+          deletedMapCount += deletedMap.count;
+
+          // ===============================================
+          // 2.2 DELETE HEADER FRACTION
+          // ===============================================
+
+          const deletedFractionHeader =
+            await tx.headerIssueTempFraction.deleteMany({
+              where: {
+                headerId: headerTempIdInt,
+              },
+            });
+
+          deletedFractionHeaderCount += deletedFractionHeader.count;
+
+          // ===============================================
+          // 2.3 DELETE BOX TEMP
+          // ===============================================
+
+          const deletedBox = await tx.boxIssueTemp.deleteMany({
+            where: {
+              headerId: headerTempIdInt,
+            },
+          });
+
+          deletedBoxCount += deletedBox.count;
+
+          // ===============================================
+          // 2.4 DELETE HEADER TEMP
+          // ===============================================
+
+          const deletedHeader = await tx.headerIssueTemp.deleteMany({
+            where: {
+              id: headerTempIdInt,
+
+              palletTempId: palletTempIdInt,
+            },
+          });
+
+          deletedHeaderCount += deletedHeader.count;
+        }
+
+        // =================================================
+        // 3) DELETE PALLET TEMP
+        // หลัง Header ทั้งหมดถูกลบแล้ว
+        // =================================================
+
+        const deletedPallet = await tx.palletTemp.delete({
+          where: {
+            id: palletTempIdInt,
+          },
+        });
+
+        // =================================================
+        // RESULT
+        // =================================================
+
+        return {
+          palletTempId: palletTempIdInt,
+
+          foundHeaderCount: headers.length,
+
+          deletedMapHeaderIssueTempFractionCount: deletedMapCount,
+
+          deletedHeaderIssueTempFractionCount: deletedFractionHeaderCount,
+
+          deletedBoxIssueTempCount: deletedBoxCount,
+
+          deletedHeaderIssueTempCount: deletedHeaderCount,
+
+          deletedPalletTemp: deletedPallet,
+        };
+      });
+
+      // =====================================================
+      // SUCCESS
+      // =====================================================
+
+      return res.send({
+        message: "delete_pallet_temp_success",
+
+        data: result,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  fetchPalletTemp: async (req, res) => {
+    try {
+      const { userId } = req.body;
+
+      const palletTemp = await prisma.palletTemp.findFirst({
+        where: {
+          status: "use",
+          userId: parseInt(userId),
+        },
+        orderBy: { id: "desc" },
+      });
+
+      return res.send({ results: palletTemp });
+    } catch (e) {
+      return res.status(500).send({ error: e.message });
+    }
+  },
+
+  createHeaderTemp: async (req, res) => {
+    try {
+      const {
         itemNo,
         itemName,
-        wosNo,
-        dwg,
-        dieNo,
-        lotNo,
-        qty
+        groupId,
+        controlLot,
+        totalBox,
+        moveMentThreeMonth,
+        normalQty,
+        palletTempId,
+        userId,
       } = req.body;
 
-      if(headTempId == null || 
-        headFractionId == null || 
+      if (
+        userId == null ||
+        groupId == null ||
+        totalBox == null ||
+        normalQty == null ||
+        palletTempId == null ||
+        !itemNo ||
+        !itemName ||
+        !moveMentThreeMonth
+      ) {
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
+
+      const headerIssueTemp = await prisma.headerIssueTemp.create({
+        data: {
+          palletTempId: parseInt(palletTempId),
+          itemNo: itemNo,
+          itemName: itemName,
+          groupId: parseInt(groupId),
+          controlLot: controlLot,
+          normalQty: parseInt(normalQty),
+          totalBox: parseInt(totalBox),
+          moveMentThreeMonth: moveMentThreeMonth,
+          userId: parseInt(userId),
+        },
+      });
+
+      return res.send({
+        message: "add_issue_header_temp_success",
+        data: headerIssueTemp,
+      });
+    } catch (e) {
+      return res.status(500).send({ error: e.message });
+    }
+  },
+
+  fetchHeaderTemp: async (req, res) => {
+    try {
+      const { userId } = req.body;
+
+      if (userId == null) {
+        return res.status(400).send({
+          message: "missing_userId",
+        });
+      }
+
+      const userIdInt = parseInt(userId);
+
+      if (Number.isNaN(userIdInt)) {
+        return res.status(400).send({
+          message: "invalid_userId",
+        });
+      }
+
+      // ===============================
+      // Header ทั้งหมดของ User
+      // ===============================
+
+      const headers = await prisma.headerIssueTemp.findMany({
+        where: {
+          status: "use",
+          userId: userIdInt,
+        },
+
+        orderBy: {
+          id: "desc",
+        },
+      });
+
+      // ===============================
+      // เพิ่มข้อมูล Box ของแต่ละ Header
+      // ===============================
+
+      const results = await Promise.all(
+        headers.map(async (header) => {
+          // ---------------------------
+          // Header Fraction ล่าสุด
+          // ---------------------------
+
+          const fractionHeader = await prisma.headerIssueTempFraction.findFirst(
+            {
+              where: {
+                headerId: header.id,
+                status: "use",
+              },
+
+              orderBy: {
+                id: "desc",
+              },
+
+              select: {
+                id: true,
+                qtyBox: true,
+              },
+            }
+          );
+
+          // ---------------------------
+          // Box ที่ถูก Map เป็น Fraction
+          // ---------------------------
+
+          const fractionMaps = await prisma.mapHeaderIssueTempFraction.findMany(
+            {
+              where: {
+                headerId: header.id,
+                status: "use",
+              },
+
+              select: {
+                boxId: true,
+              },
+            }
+          );
+
+          const fractionBoxIds = fractionMaps
+            .map((x) => x.boxId)
+            .filter((id) => id != null);
+
+          // ---------------------------
+          // Box เต็มที่ Scan แล้ว
+          // เอาเฉพาะ Box ที่ไม่ได้อยู่ Fraction
+          // ---------------------------
+
+          const normalScannedQty = await prisma.boxIssueTemp.count({
+            where: {
+              headerId: header.id,
+              status: "use",
+
+              id:
+                fractionBoxIds.length > 0
+                  ? {
+                      notIn: fractionBoxIds,
+                    }
+                  : undefined,
+            },
+          });
+
+          // ---------------------------
+          // Box เศษที่ Scan แล้ว
+          // ---------------------------
+
+          const fractionScannedQty = fractionMaps.length;
+
+          return {
+            ...header,
+
+            fractionQty: Number(fractionHeader?.qtyBox || 0),
+
+            normalScannedQty: Number(normalScannedQty),
+
+            fractionScannedQty: Number(fractionScannedQty),
+          };
+        })
+      );
+
+      return res.send({
+        results: results,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  editHeaderTemp: async (req, res) => {
+    try {
+      const {
+        headerTempId,
+        userId,
+        itemNo,
+        itemName,
+        groupId,
+        controlLot,
+        totalBox,
+        moveMentThreeMonth,
+        normalQty,
+        palletTempId,
+      } = req.body;
+
+      if (
+        userId == null ||
+        groupId == null ||
+        !controlLot ||
+        totalBox == null ||
+        headerTempId == null ||
+        normalQty == null ||
+        palletTempId == null ||
+        !itemNo ||
+        !itemName ||
+        !moveMentThreeMonth
+      ) {
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
+
+      // update headTemp issue
+
+      const headerIssueTemp = await prisma.headerIssueTemp.update({
+        where: {
+          id: parseInt(headerTempId),
+          palletTempId: parseInt(palletTempId),
+          userId: parseInt(userId),
+        },
+        data: {
+          itemNo: itemNo,
+          itemName: itemName,
+          groupId: parseInt(groupId),
+          controlLot: controlLot,
+          normalQty: parseInt(normalQty),
+          totalBox: parseInt(totalBox),
+          moveMentThreeMonth: moveMentThreeMonth,
+        },
+      });
+
+      return res.send({
+        message: "edit_issue_header_temp_success",
+        data: headerIssueTemp,
+      });
+    } catch (e) {
+      return res.status(500).send({ error: e.message });
+    }
+  },
+
+  createBoxTemp: async (req, res) => {
+    try {
+      const { headTempId, itemNo, itemName, wosNo, dwg, dieNo, lotNo, qty } =
+        req.body;
+
+      if (
+        headTempId == null ||
         !itemNo ||
         !itemName ||
         !wosNo ||
         !dwg ||
         !dieNo ||
         !lotNo ||
-        qty == null 
+        qty == null
       ) {
-          return res.status(400).send({ message: 'missing_required_fields' });
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
+
+      const checkBoxByItemMaster = await prisma.partMaster.findFirst({
+        where: {
+          itemNo: itemNo,
+          status: "use",
+        },
+      });
+
+      if (!checkBoxByItemMaster) {
+        return res
+          .status(400)
+          .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
+      }
+
+      //  //check in table box before scan receive temp
+      //  const  checkBoxIssue = await prisma.box.findFirst({
+      //   where: {
+      //       wosNo: wosNo,
+      //       BoxState: "wait",
+      //       status: "use"
+      //   }
+      // })
+      // if(checkBoxIssue){
+      //   return res.status(400).send({ message: 'WOS No นี้ทำการ Issue แล้ว'});
+      // }
+
+      const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
+        where: {
+          wosNo: wosNo,
+          status: "use",
+        },
+      });
+
+      if (checkBoxRepeat) {
+        return res.status(400).send({ message: "WOS No นี้ถูก Scan ไปแล้ว" });
+      }
+
+      const boxIssueTemp = await prisma.boxIssueTemp.create({
+        data: {
+          headerId: parseInt(headTempId),
+          itemNo: itemNo,
+          itemName: itemName,
+          wosNo: wosNo,
+          dwg: dwg,
+          dieNo: dieNo,
+          lotNo: lotNo,
+          qty: parseInt(qty),
+        },
+      });
+
+      return res.send({
+        message: "add_box_issue_temp_success",
+        data: boxIssueTemp,
+      });
+    } catch (e) {
+      return res.status(500).send({ error: e.message });
+    }
+  },
+
+  fetchBoxTempByHeadId: async (req, res) => {
+    try {
+      const { headerId } = req.body;
+
+      if (headerId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const headerIdInt = parseInt(headerId);
+
+      if (Number.isNaN(headerIdInt)) {
+        return res.status(400).send({
+          message: "invalid_headerId",
+        });
+      }
+
+      const rows = await prisma.boxIssueTemp.findMany({
+        where: {
+          status: "use",
+          headerId: headerIdInt,
+
+          // ไม่เอา Box ที่ถูก map เป็น Box เศษแล้ว
+          MapHeaderIssueTempFraction: {
+            none: {
+              headerId: headerIdInt,
+              status: "use",
+            },
+          },
+        },
+        orderBy: {
+          id: "asc",
+        },
+        select: {
+          id: true,
+          headerId: true,
+          itemNo: true,
+          itemName: true,
+          wosNo: true,
+          dwg: true,
+          dieNo: true,
+          lotNo: true,
+          qty: true,
+        },
+      });
+
+      return res.send({
+        results: rows,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  editBoxIssueTemp: async (req, res) => {
+    try {
+      const { headTempId, boxTempId, qty } = req.body;
+
+      if (headTempId == null || boxTempId == null || qty == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const headTempIdInt = parseInt(headTempId);
+      const boxTempIdInt = parseInt(boxTempId);
+      const qtyInt = parseInt(qty);
+
+      if (
+        Number.isNaN(headTempIdInt) ||
+        Number.isNaN(boxTempIdInt) ||
+        Number.isNaN(qtyInt)
+      ) {
+        return res.status(400).send({
+          message: "invalid_number_fields",
+        });
+      }
+
+      if (qtyInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_qty",
+        });
+      }
+
+      const checkBoxIssueTemp = await prisma.boxIssueTemp.findFirst({
+        where: {
+          id: boxTempIdInt,
+          headerId: headTempIdInt,
+          status: "use",
+        },
+      });
+
+      if (!checkBoxIssueTemp) {
+        return res.status(400).send({
+          message: "box_issueTemp_notFound",
+        });
+      }
+
+      const update = await prisma.boxIssueTemp.update({
+        where: {
+          id: boxTempIdInt,
+        },
+        data: {
+          qty: qtyInt,
+        },
+      });
+
+      return res.send({
+        message: "update_BoxTemp_success",
+        data: update,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  createHeaderTempFraction: async (req, res) => {
+    try {
+      const { headTempId, qtyBox } = req.body;
+
+      if (headTempId == null || qtyBox == null) {
+        return res.status(400).send({ message: "missing_required_fields" });
       }
 
       const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
         where: {
-          id: parseInt(headTempId) ,
-          status: 'use',
+          id: parseInt(headTempId),
+          status: "use",
         },
       });
 
       if (!checkHeaderIssueTemp) {
-        return res.status(400).send({ message: 'header_issueTemp_notFound' });
-      }  
+        return res.status(400).send({ message: "header_issueTemp_notFound" });
+      }
 
-      const headerIssueTempFraction = await prisma.headerIssueTempFraction.findFirst({
+      const headerIssueTempFraction =
+        await prisma.headerIssueTempFraction.create({
+          data: {
+            headerId: parseInt(headTempId),
+            qtyBox: parseInt(qtyBox),
+          },
+        });
+
+      return res.send({
+        message: "create_headerTempFraction_success",
+        data: headerIssueTempFraction,
+      });
+    } catch (e) {
+      return res.status(500).send({ error: e.message });
+    }
+  },
+
+  mapFractionTemp: async (req, res) => {
+    try {
+      const {
+        headTempId,
+        headFractionId,
+        itemNo,
+        itemName,
+        wosNo,
+        dwg,
+        dieNo,
+        lotNo,
+        qty,
+      } = req.body;
+
+      if (
+        headTempId == null ||
+        headFractionId == null ||
+        !itemNo ||
+        !itemName ||
+        !wosNo ||
+        !dwg ||
+        !dieNo ||
+        !lotNo ||
+        qty == null
+      ) {
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
+
+      const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
         where: {
-          id: parseInt(headFractionId) ,
-          status: 'use',
+          id: parseInt(headTempId),
+          status: "use",
         },
       });
 
-      if (!headerIssueTempFraction) {
-        return res.status(400).send({ message: 'header_issueTemp_fraction_notFound' });
+      if (!checkHeaderIssueTemp) {
+        return res.status(400).send({ message: "header_issueTemp_notFound" });
       }
 
+      const headerIssueTempFraction =
+        await prisma.headerIssueTempFraction.findFirst({
+          where: {
+            id: parseInt(headFractionId),
+            status: "use",
+          },
+        });
+
+      if (!headerIssueTempFraction) {
+        return res
+          .status(400)
+          .send({ message: "header_issueTemp_fraction_notFound" });
+      }
 
       const checkBoxByItemMaster = await prisma.partMaster.findFirst({
-        where:{
+        where: {
           itemNo: itemNo,
-          status: "use"
-        }
-      })
+          status: "use",
+        },
+      });
 
-      if(!checkBoxByItemMaster){
-        return res.status(400).send({ message: 'ไม่มี ItemNo และ ItemName นี้ในระบบ'});
+      if (!checkBoxByItemMaster) {
+        return res
+          .status(400)
+          .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
       }
 
+      const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
+        where: {
+          wosNo: wosNo,
+          status: "use",
+        },
+      });
 
-      const  checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
-        where:{
-        wosNo: wosNo,
-        status: "use"
-        }
-    }) 
-
-    if(checkBoxRepeat){
-    return res.status(400).send({ message: 'WOS No นี้ถูก Scan ไปแล้ว'});
-    }
-
+      if (checkBoxRepeat) {
+        return res.status(400).send({ message: "WOS No นี้ถูก Scan ไปแล้ว" });
+      }
 
       const result = await prisma.$transaction(async (tx) => {
-
         const boxIssueTemp = await tx.boxIssueTemp.create({
           data: {
-            headerId: parseInt(headTempId) ,
+            headerId: parseInt(headTempId),
             itemNo: itemNo,
             itemName: itemName,
             wosNo: wosNo,
             dwg: dwg,
             dieNo: dieNo,
             lotNo: lotNo,
-            qty: parseInt(qty)
-          }
-        });
-
-
-        const mapHeaderIssueTempFraction = await tx.mapHeaderIssueTempFraction.create({
-          data: {
-            headerId: parseInt(headTempId),
-            headerFractionId: parseInt(headFractionId),
-            boxId: parseInt(boxIssueTemp.id)
+            qty: parseInt(qty),
           },
-          
         });
 
+        const mapHeaderIssueTempFraction =
+          await tx.mapHeaderIssueTempFraction.create({
+            data: {
+              headerId: parseInt(headTempId),
+              headerFractionId: parseInt(headFractionId),
+              boxId: parseInt(boxIssueTemp.id),
+            },
+          });
 
         return {
           boxIssueTemp,
-          mapHeaderIssueTempFraction
-        }
-  })
-
-
-      return res.send({
-        message: 'map_fractionTemp_success',
-        data: result,
-    });
-
-
-  }catch(e){
-    return res.status(500).send({ error: e.message });
-  }
-},
-
-
-
-
-fractionTempListByHeaderTempId: async (req, res) => {
-  try {
-    const { headTempId } = req.body;
-
-    if (headTempId == null) {
-      return res.status(400).send({
-        message: 'missing_required_fields'
-      });
-    }
-
-    const headTempIdInt = parseInt(headTempId);
-
-    if (Number.isNaN(headTempIdInt)) {
-      return res.status(400).send({
-        message: 'invalid_headTempId'
-      });
-    }
-
-    // 1) check ว่า HeaderIssueTemp หลักมีจริงไหม
-    const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
-      where: {
-        id: headTempIdInt,
-        status: 'use',
-      },
-    });
-
-    if (!checkHeaderIssueTemp) {
-      return res.status(400).send({
-        message: 'header_issueTemp_notFound'
-      });
-    }
-
-    // 2) หา HeaderIssueTempFraction จาก headerId ของ HeaderIssueTemp
-    const headerFraction = await prisma.headerIssueTempFraction.findFirst({
-      where: {
-        headerId: headTempIdInt,
-        status: 'use',
-      },
-      orderBy: {
-        id: 'desc',
-      },
-      select: {
-        id: true,
-        headerId: true,
-        qtyBox: true,
-        timeStmp: true,
-        status: true,
-      },
-    });
-
-    // ถ้ายังไม่มี Header เศษ ให้ return ว่าง
-    if (!headerFraction) {
-      return res.send({
-        message: 'fraction_temp_list_success',
-        headerFraction: null,
-        results: [],
-      });
-    }
-
-    // 3) เอา id ของ HeaderIssueTempFraction ไปหา map ว่ามี boxId อะไรบ้าง
-    const maps = await prisma.mapHeaderIssueTempFraction.findMany({
-      where: {
-        headerId: headTempIdInt,
-        headerFractionId: headerFraction.id,
-        status: 'use',
-      },
-      orderBy: {
-        id: 'asc',
-      },
-      select: {
-        id: true,
-        headerId: true,
-        headerFractionId: true,
-        boxId: true,
-        timeStmp: true,
-      },
-    });
-
-    const boxIds = maps.map((m) => m.boxId);
-
-    // ถ้ามี Header เศษแล้ว แต่ยังไม่มี Box ที่ map อยู่
-    if (boxIds.length === 0) {
-      return res.send({
-        message: 'fraction_temp_list_success',
-        headerFraction,
-        results: [],
-      });
-    }
-
-    // 4) เอา boxId ไปดึงข้อมูล BoxIssueTemp
-    const boxes = await prisma.boxIssueTemp.findMany({
-      where: {
-        id: {
-          in: boxIds,
-        },
-        status: 'use',
-      },
-      select: {
-        id: true,
-        headerId: true,
-        itemNo: true,
-        itemName: true,
-        wosNo: true,
-        dwg: true,
-        dieNo: true,
-        lotNo: true,
-        qty: true,
-        timeStmp: true,
-        status: true,
-      },
-    });
-
-    // 5) รวมข้อมูล map + box เพื่อให้ frontend ใช้งานง่าย
-    const rows = maps
-      .map((m) => {
-        const box = boxes.find((b) => b.id === m.boxId);
-
-        if (!box) return null;
-
-        return {
-          mapId: m.id,
-          headerFractionId: m.headerFractionId,
-          boxId: m.boxId,
-
-          id: box.id,
-          headerId: box.headerId,
-          itemNo: box.itemNo,
-          itemName: box.itemName,
-          wosNo: box.wosNo,
-          dwg: box.dwg,
-          dieNo: box.dieNo,
-          lotNo: box.lotNo,
-          qty: box.qty,
-          timeStmp: box.timeStmp,
-          status: box.status,
+          mapHeaderIssueTempFraction,
         };
-      })
-      .filter((row) => row !== null);
+      });
 
-    return res.send({
-      message: 'fraction_temp_list_success',
-      headerFraction,
-      results: rows,
-    });
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
+      return res.send({
+        message: "map_fractionTemp_success",
+        data: result,
+      });
+    } catch (e) {
+      return res.status(500).send({ error: e.message });
+    }
+  },
 
+  fractionTempListByHeaderTempId: async (req, res) => {
+    try {
+      const { headTempId } = req.body;
 
-editFractionTemp: async (req, res) => {
-  try {
-    const { headFractionTempId, headTempId, qtyBox } = req.body;
+      if (headTempId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
 
-    if (
-      headFractionTempId == null ||
-      headTempId == null ||
-      qtyBox == null
-    ) {
-      return res.status(400).send({
-        message: 'missing_required_fields'
+      const headTempIdInt = parseInt(headTempId);
+
+      if (Number.isNaN(headTempIdInt)) {
+        return res.status(400).send({
+          message: "invalid_headTempId",
+        });
+      }
+
+      // 1) check ว่า HeaderIssueTemp หลักมีจริงไหม
+      const checkHeaderIssueTemp = await prisma.headerIssueTemp.findFirst({
+        where: {
+          id: headTempIdInt,
+          status: "use",
+        },
+      });
+
+      if (!checkHeaderIssueTemp) {
+        return res.status(400).send({
+          message: "header_issueTemp_notFound",
+        });
+      }
+
+      // 2) หา HeaderIssueTempFraction จาก headerId ของ HeaderIssueTemp
+      const headerFraction = await prisma.headerIssueTempFraction.findFirst({
+        where: {
+          headerId: headTempIdInt,
+          status: "use",
+        },
+        orderBy: {
+          id: "desc",
+        },
+        select: {
+          id: true,
+          headerId: true,
+          qtyBox: true,
+          timeStmp: true,
+          status: true,
+        },
+      });
+
+      // ถ้ายังไม่มี Header เศษ ให้ return ว่าง
+      if (!headerFraction) {
+        return res.send({
+          message: "fraction_temp_list_success",
+          headerFraction: null,
+          results: [],
+        });
+      }
+
+      // 3) เอา id ของ HeaderIssueTempFraction ไปหา map ว่ามี boxId อะไรบ้าง
+      const maps = await prisma.mapHeaderIssueTempFraction.findMany({
+        where: {
+          headerId: headTempIdInt,
+          headerFractionId: headerFraction.id,
+          status: "use",
+        },
+        orderBy: {
+          id: "asc",
+        },
+        select: {
+          id: true,
+          headerId: true,
+          headerFractionId: true,
+          boxId: true,
+          timeStmp: true,
+        },
+      });
+
+      const boxIds = maps.map((m) => m.boxId);
+
+      // ถ้ามี Header เศษแล้ว แต่ยังไม่มี Box ที่ map อยู่
+      if (boxIds.length === 0) {
+        return res.send({
+          message: "fraction_temp_list_success",
+          headerFraction,
+          results: [],
+        });
+      }
+
+      // 4) เอา boxId ไปดึงข้อมูล BoxIssueTemp
+      const boxes = await prisma.boxIssueTemp.findMany({
+        where: {
+          id: {
+            in: boxIds,
+          },
+          status: "use",
+        },
+        select: {
+          id: true,
+          headerId: true,
+          itemNo: true,
+          itemName: true,
+          wosNo: true,
+          dwg: true,
+          dieNo: true,
+          lotNo: true,
+          qty: true,
+          timeStmp: true,
+          status: true,
+        },
+      });
+
+      // 5) รวมข้อมูล map + box เพื่อให้ frontend ใช้งานง่าย
+      const rows = maps
+        .map((m) => {
+          const box = boxes.find((b) => b.id === m.boxId);
+
+          if (!box) return null;
+
+          return {
+            mapId: m.id,
+            headerFractionId: m.headerFractionId,
+            boxId: m.boxId,
+
+            id: box.id,
+            headerId: box.headerId,
+            itemNo: box.itemNo,
+            itemName: box.itemName,
+            wosNo: box.wosNo,
+            dwg: box.dwg,
+            dieNo: box.dieNo,
+            lotNo: box.lotNo,
+            qty: box.qty,
+            timeStmp: box.timeStmp,
+            status: box.status,
+          };
+        })
+        .filter((row) => row !== null);
+
+      return res.send({
+        message: "fraction_temp_list_success",
+        headerFraction,
+        results: rows,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
       });
     }
+  },
 
-    const headFractionTempIdInt = parseInt(headFractionTempId);
-    const headTempIdInt = parseInt(headTempId);
-    const qtyBoxInt = parseInt(qtyBox);
+  editFractionTemp: async (req, res) => {
+    try {
+      const { headFractionTempId, headTempId, qtyBox } = req.body;
 
-    if (
-      Number.isNaN(headFractionTempIdInt) ||
-      Number.isNaN(headTempIdInt) ||
-      Number.isNaN(qtyBoxInt)
-    ) {
-      return res.status(400).send({
-        message: 'invalid_number_fields'
+      if (headFractionTempId == null || headTempId == null || qtyBox == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const headFractionTempIdInt = parseInt(headFractionTempId);
+      const headTempIdInt = parseInt(headTempId);
+      const qtyBoxInt = parseInt(qtyBox);
+
+      if (
+        Number.isNaN(headFractionTempIdInt) ||
+        Number.isNaN(headTempIdInt) ||
+        Number.isNaN(qtyBoxInt)
+      ) {
+        return res.status(400).send({
+          message: "invalid_number_fields",
+        });
+      }
+
+      if (qtyBoxInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_qtyBox",
+        });
+      }
+
+      const checkHeaderFractionTemp =
+        await prisma.headerIssueTempFraction.findFirst({
+          where: {
+            id: headFractionTempIdInt,
+            headerId: headTempIdInt,
+            status: "use",
+          },
+        });
+
+      if (!checkHeaderFractionTemp) {
+        return res.status(400).send({
+          message: "header_issueTemp_fraction_notFound",
+        });
+      }
+
+      const scannedCount = await prisma.mapHeaderIssueTempFraction.count({
+        where: {
+          headerId: headTempIdInt,
+          headerFractionId: headFractionTempIdInt,
+          status: "use",
+        },
       });
-    }
 
-    if (qtyBoxInt <= 0) {
-      return res.status(400).send({
-        message: 'invalid_qtyBox'
-      });
-    }
+      if (qtyBoxInt < scannedCount) {
+        return res.status(400).send({
+          message: "qtyBox_less_than_scanned_box",
+        });
+      }
 
-    const checkHeaderFractionTemp =
-      await prisma.headerIssueTempFraction.findFirst({
+      const update = await prisma.headerIssueTempFraction.update({
         where: {
           id: headFractionTempIdInt,
-          headerId: headTempIdInt,
-          status: 'use'
-        }
-      });
-
-    if (!checkHeaderFractionTemp) {
-      return res.status(400).send({
-        message: 'header_issueTemp_fraction_notFound'
-      });
-    }
-
-    const scannedCount =
-      await prisma.mapHeaderIssueTempFraction.count({
-        where: {
-          headerId: headTempIdInt,
-          headerFractionId: headFractionTempIdInt,
-          status: 'use'
-        }
-      });
-
-    if (qtyBoxInt < scannedCount) {
-      return res.status(400).send({
-        message: 'qtyBox_less_than_scanned_box'
-      });
-    }
-
-    const update = await prisma.headerIssueTempFraction.update({
-      where: {
-        id: headFractionTempIdInt
-      },
-      data: {
-        qtyBox: qtyBoxInt
-      }
-    });
-
-    return res.send({
-      message: 'update_headerFractionTemp_success',
-      data: update
-    });
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
-
-
-editFractionBoxTemp: async (req, res) => {
-  try {
-    const { headFractionTempId, headTempId, boxTempId, qty } = req.body;
-
-    if (
-      headFractionTempId == null ||
-      headTempId == null ||
-      boxTempId == null ||
-      qty == null
-    ) {
-      return res.status(400).send({
-        message: 'missing_required_fields'
-      });
-    }
-
-    const headFractionTempIdInt = parseInt(headFractionTempId);
-    const headTempIdInt = parseInt(headTempId);
-    const boxTempIdInt = parseInt(boxTempId);
-    const qtyInt = parseInt(qty);
-
-    if (
-      Number.isNaN(headFractionTempIdInt) ||
-      Number.isNaN(headTempIdInt) ||
-      Number.isNaN(boxTempIdInt) ||
-      Number.isNaN(qtyInt)
-    ) {
-      return res.status(400).send({
-        message: 'invalid_number_fields'
-      });
-    }
-
-    if (qtyInt <= 0) {
-      return res.status(400).send({
-        message: 'invalid_qty'
-      });
-    }
-
-    const checkMapHeaderFractionTemp =
-      await prisma.mapHeaderIssueTempFraction.findFirst({
-        where: {
-          headerId: headTempIdInt,
-          headerFractionId: headFractionTempIdInt,
-          boxId: boxTempIdInt,
-          status: 'use',
+        },
+        data: {
+          qtyBox: qtyBoxInt,
         },
       });
 
-    if (!checkMapHeaderFractionTemp) {
-      return res.status(400).send({
-        message: 'map_header_issueFractionTemp_notFound'
+      return res.send({
+        message: "update_headerFractionTemp_success",
+        data: update,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
       });
     }
+  },
 
-    const checkBoxIssueTemp = await prisma.boxIssueTemp.findFirst({
-      where: {
-        id: boxTempIdInt,
-        headerId: headTempIdInt,
-        status: 'use'
+  editFractionBoxTemp: async (req, res) => {
+    try {
+      const { headFractionTempId, headTempId, boxTempId, qty } = req.body;
+
+      if (
+        headFractionTempId == null ||
+        headTempId == null ||
+        boxTempId == null ||
+        qty == null
+      ) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
       }
-    });
 
-    if (!checkBoxIssueTemp) {
-      return res.status(400).send({
-        message: 'box_issueTemp_notFound'
+      const headFractionTempIdInt = parseInt(headFractionTempId);
+      const headTempIdInt = parseInt(headTempId);
+      const boxTempIdInt = parseInt(boxTempId);
+      const qtyInt = parseInt(qty);
+
+      if (
+        Number.isNaN(headFractionTempIdInt) ||
+        Number.isNaN(headTempIdInt) ||
+        Number.isNaN(boxTempIdInt) ||
+        Number.isNaN(qtyInt)
+      ) {
+        return res.status(400).send({
+          message: "invalid_number_fields",
+        });
+      }
+
+      if (qtyInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_qty",
+        });
+      }
+
+      const checkMapHeaderFractionTemp =
+        await prisma.mapHeaderIssueTempFraction.findFirst({
+          where: {
+            headerId: headTempIdInt,
+            headerFractionId: headFractionTempIdInt,
+            boxId: boxTempIdInt,
+            status: "use",
+          },
+        });
+
+      if (!checkMapHeaderFractionTemp) {
+        return res.status(400).send({
+          message: "map_header_issueFractionTemp_notFound",
+        });
+      }
+
+      const checkBoxIssueTemp = await prisma.boxIssueTemp.findFirst({
+        where: {
+          id: boxTempIdInt,
+          headerId: headTempIdInt,
+          status: "use",
+        },
+      });
+
+      if (!checkBoxIssueTemp) {
+        return res.status(400).send({
+          message: "box_issueTemp_notFound",
+        });
+      }
+
+      const update = await prisma.boxIssueTemp.update({
+        where: {
+          id: boxTempIdInt,
+        },
+        data: {
+          qty: qtyInt,
+        },
+      });
+
+      return res.send({
+        message: "update_fractionBoxTemp_success",
+        data: update,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
       });
     }
+  },
 
-    const update = await prisma.boxIssueTemp.update({
-      where: {
-        id: boxTempIdInt
-      },
-      data: {
-        qty: qtyInt
-      }
-    });
-
-    return res.send({
-      message: 'update_fractionBoxTemp_success',
-      data: update
-    });
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
-
-
-deleteBoxTempIssue: async (req,res) => {
-  try{
-      const {boxTempId} = req.body;
+  deleteBoxTempIssue: async (req, res) => {
+    try {
+      const { boxTempId } = req.body;
 
       if (boxTempId == null) {
         return res.status(400).send({ message: "missing_required_fields" });
       }
-  
+
       const current = await prisma.boxIssueTemp.findFirst({
         where: { id: parseInt(boxTempId), status: "use" },
         select: { id: true },
       });
-  
+
       if (!current) {
         return res.status(404).send({ message: "boxTemp_not_found" });
       }
 
-
       const deleted = await prisma.boxIssueTemp.delete({
-        where: { 
-          id: parseInt(boxTempId) 
+        where: {
+          id: parseInt(boxTempId),
         },
       });
-
 
       return res.send({ message: "delete_box_temp_success", data: deleted });
-
-
-  }catch(e){
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
-
-
-deleteAllBoxTempIssue: async (req, res) => {
-  try {
-    const { headerTempId } = req.body;
-
-    if (headerTempId == null) {
-      return res.status(400).send({
-        message: "missing_required_fields"
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
       });
     }
+  },
 
-    const headerTempIdInt = parseInt(headerTempId);
+  deleteAllBoxTempIssue: async (req, res) => {
+    try {
+      const { headerTempId } = req.body;
 
-    if (Number.isNaN(headerTempIdInt)) {
-      return res.status(400).send({
-        message: "invalid_headerTempId"
-      });
-    }
-
-    const currentHeader = await prisma.headerIssueTemp.findFirst({
-      where: {
-        id: headerTempIdInt,
-        status: "use"
-      },
-      select: {
-        id: true
+      if (headerTempId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
       }
-    });
 
-    if (!currentHeader) {
-      return res.status(404).send({
-        message: "headerIssueTemp_not_found"
-      });
-    }
+      const headerTempIdInt = parseInt(headerTempId);
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1) หา boxId ที่ถูกใช้เป็น Box เศษแล้ว
-      const mappedFractionBoxes = await tx.mapHeaderIssueTempFraction.findMany({
+      if (Number.isNaN(headerTempIdInt)) {
+        return res.status(400).send({
+          message: "invalid_headerTempId",
+        });
+      }
+
+      const currentHeader = await prisma.headerIssueTemp.findFirst({
         where: {
-          headerId: headerTempIdInt,
-          status: "use"
+          id: headerTempIdInt,
+          status: "use",
         },
         select: {
-          boxId: true
-        }
+          id: true,
+        },
       });
 
-      const mappedBoxIds = mappedFractionBoxes
-        .map((x) => x.boxId)
-        .filter((id) => id != null);
+      if (!currentHeader) {
+        return res.status(404).send({
+          message: "headerIssueTemp_not_found",
+        });
+      }
 
-      // 2) ลบเฉพาะ BoxIssueTemp ที่ไม่อยู่ใน MapHeaderIssueTempFraction
-      const deletedBoxIssueTemp = await tx.boxIssueTemp.deleteMany({
+      const result = await prisma.$transaction(async (tx) => {
+        // 1) หา boxId ที่ถูกใช้เป็น Box เศษแล้ว
+        const mappedFractionBoxes =
+          await tx.mapHeaderIssueTempFraction.findMany({
+            where: {
+              headerId: headerTempIdInt,
+              status: "use",
+            },
+            select: {
+              boxId: true,
+            },
+          });
+
+        const mappedBoxIds = mappedFractionBoxes
+          .map((x) => x.boxId)
+          .filter((id) => id != null);
+
+        // 2) ลบเฉพาะ BoxIssueTemp ที่ไม่อยู่ใน MapHeaderIssueTempFraction
+        const deletedBoxIssueTemp = await tx.boxIssueTemp.deleteMany({
+          where: {
+            headerId: headerTempIdInt,
+            status: "use",
+
+            id:
+              mappedBoxIds.length > 0
+                ? {
+                    notIn: mappedBoxIds,
+                  }
+                : undefined,
+          },
+        });
+
+        return {
+          headerTempId: headerTempIdInt,
+          mappedBoxIds,
+          skippedFractionBoxCount: mappedBoxIds.length,
+          deletedBoxIssueTempCount: deletedBoxIssueTemp.count,
+        };
+      });
+
+      return res.send({
+        message: "delete_all_box_temp_issue_success",
+        data: result,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  deleteheaderTemp: async (req, res) => {
+    try {
+      const { headerTempId } = req.body;
+
+      if (headerTempId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const headerTempIdInt = parseInt(headerTempId);
+
+      if (Number.isNaN(headerTempIdInt)) {
+        return res.status(400).send({
+          message: "invalid_headerTempId",
+        });
+      }
+
+      const current = await prisma.headerIssueTemp.findFirst({
         where: {
-          headerId: headerTempIdInt,
+          id: headerTempIdInt,
           status: "use",
-
-          id: mappedBoxIds.length > 0
-            ? {
-                notIn: mappedBoxIds
-              }
-            : undefined
-        }
+        },
+        select: {
+          id: true,
+        },
       });
 
-      return {
-        headerTempId: headerTempIdInt,
-        mappedBoxIds,
-        skippedFractionBoxCount: mappedBoxIds.length,
-        deletedBoxIssueTempCount: deletedBoxIssueTemp.count
-      };
-    });
+      if (!current) {
+        return res.status(404).send({
+          message: "headerIssueTemp_not_found",
+        });
+      }
 
-    return res.send({
-      message: "delete_all_box_temp_issue_success",
-      data: result
-    });
+      const result = await prisma.$transaction(async (tx) => {
+        // 1) ลบ MapHeaderIssueTempFraction ก่อน
+        // เพราะ map อ้างถึง HeaderIssueTemp, HeaderIssueTempFraction, BoxIssueTemp
+        const deletedMapHeaderIssueTempFraction =
+          await tx.mapHeaderIssueTempFraction.deleteMany({
+            where: {
+              headerId: headerTempIdInt,
+            },
+          });
 
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
+        // 2) ลบ HeaderIssueTempFraction
+        const deletedHeaderIssueTempFraction =
+          await tx.headerIssueTempFraction.deleteMany({
+            where: {
+              headerId: headerTempIdInt,
+            },
+          });
 
-
-
-deleteheaderTemp: async (req, res) => {
-  try {
-    const { headerTempId } = req.body;
-
-    if (headerTempId == null) {
-      return res.status(400).send({
-        message: "missing_required_fields"
-      });
-    }
-
-    const headerTempIdInt = parseInt(headerTempId);
-
-    if (Number.isNaN(headerTempIdInt)) {
-      return res.status(400).send({
-        message: "invalid_headerTempId"
-      });
-    }
-
-    const current = await prisma.headerIssueTemp.findFirst({
-      where: {
-        id: headerTempIdInt,
-        status: "use"
-      },
-      select: {
-        id: true
-      },
-    });
-
-    if (!current) {
-      return res.status(404).send({
-        message: "headerIssueTemp_not_found"
-      });
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      // 1) ลบ MapHeaderIssueTempFraction ก่อน
-      // เพราะ map อ้างถึง HeaderIssueTemp, HeaderIssueTempFraction, BoxIssueTemp
-      const deletedMapHeaderIssueTempFraction =
-        await tx.mapHeaderIssueTempFraction.deleteMany({
+        // 3) ลบ BoxIssueTemp ทั้งหมดของ Header นี้
+        const deletedBoxIssueTemp = await tx.boxIssueTemp.deleteMany({
           where: {
             headerId: headerTempIdInt,
           },
         });
 
-      // 2) ลบ HeaderIssueTempFraction
-      const deletedHeaderIssueTempFraction =
-        await tx.headerIssueTempFraction.deleteMany({
-          where: {
-            headerId: headerTempIdInt,
-          },
-        });
-
-      // 3) ลบ BoxIssueTemp ทั้งหมดของ Header นี้
-      const deletedBoxIssueTemp =
-        await tx.boxIssueTemp.deleteMany({
-          where: {
-            headerId: headerTempIdInt,
-          },
-        });
-
-      // 4) ลบ HeaderIssueTemp ตัวหลัก
-      const deletedHeaderIssueTemp =
-        await tx.headerIssueTemp.delete({
+        // 4) ลบ HeaderIssueTemp ตัวหลัก
+        const deletedHeaderIssueTemp = await tx.headerIssueTemp.delete({
           where: {
             id: headerTempIdInt,
           },
         });
 
-      return {
-        deletedMapHeaderIssueTempFractionCount:
-          deletedMapHeaderIssueTempFraction.count,
+        return {
+          deletedMapHeaderIssueTempFractionCount:
+            deletedMapHeaderIssueTempFraction.count,
 
-        deletedHeaderIssueTempFractionCount:
-          deletedHeaderIssueTempFraction.count,
+          deletedHeaderIssueTempFractionCount:
+            deletedHeaderIssueTempFraction.count,
 
-        deletedBoxIssueTempCount:
-          deletedBoxIssueTemp.count,
+          deletedBoxIssueTempCount: deletedBoxIssueTemp.count,
 
-        deletedHeaderIssueTemp,
-      };
-    });
+          deletedHeaderIssueTemp,
+        };
+      });
 
-    return res.send({
-      message: "delete_header_temp_success",
-      data: result,
-    });
-
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
-
-
-deleteheaderFractionTemp: async (req, res) => {
-  try {
-    const { headerFractionTempId } = req.body;
-
-    if (headerFractionTempId == null) {
-      return res.status(400).send({
-        message: "missing_required_fields"
+      return res.send({
+        message: "delete_header_temp_success",
+        data: result,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
       });
     }
+  },
 
-    const headerFractionTempIdInt = parseInt(headerFractionTempId);
+  deleteheaderFractionTemp: async (req, res) => {
+    try {
+      const { headerFractionTempId } = req.body;
 
-    if (Number.isNaN(headerFractionTempIdInt)) {
-      return res.status(400).send({
-        message: "invalid_headerFractionTempId"
-      });
-    }
+      if (headerFractionTempId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
 
-    const current = await prisma.headerIssueTempFraction.findFirst({
-      where: {
-        id: headerFractionTempIdInt,
-        status: "use"
-      },
-      select: {
-        id: true,
-        headerId: true,
-        qtyBox: true,
-      },
-    });
+      const headerFractionTempIdInt = parseInt(headerFractionTempId);
 
-    if (!current) {
-      return res.status(404).send({
-        message: "headerIssueTempFraction_not_found"
-      });
-    }
+      if (Number.isNaN(headerFractionTempIdInt)) {
+        return res.status(400).send({
+          message: "invalid_headerFractionTempId",
+        });
+      }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1) หา boxId จาก MapHeaderIssueTempFraction ก่อน
-      const maps = await tx.mapHeaderIssueTempFraction.findMany({
+      const current = await prisma.headerIssueTempFraction.findFirst({
         where: {
-          headerFractionId: headerFractionTempIdInt,
+          id: headerFractionTempIdInt,
+          status: "use",
         },
         select: {
           id: true,
-          boxId: true,
+          headerId: true,
+          qtyBox: true,
         },
       });
 
-      const boxIds = maps
-        .map((m) => m.boxId)
-        .filter((id) => id != null);
+      if (!current) {
+        return res.status(404).send({
+          message: "headerIssueTempFraction_not_found",
+        });
+      }
 
-      // 2) ลบ MapHeaderIssueTempFraction ก่อน
-      // เพราะ map มี FK ไปหา BoxIssueTemp และ HeaderIssueTempFraction
-      const deletedMapHeaderIssueTempFraction =
-        await tx.mapHeaderIssueTempFraction.deleteMany({
+      const result = await prisma.$transaction(async (tx) => {
+        // 1) หา boxId จาก MapHeaderIssueTempFraction ก่อน
+        const maps = await tx.mapHeaderIssueTempFraction.findMany({
           where: {
             headerFractionId: headerFractionTempIdInt,
           },
-        });
-
-      // 3) ลบ BoxIssueTemp ที่ถูก map กับ Header Fraction นี้
-      const deletedBoxIssueTemp =
-        boxIds.length > 0
-          ? await tx.boxIssueTemp.deleteMany({
-              where: {
-                id: {
-                  in: boxIds,
-                },
-              },
-            })
-          : { count: 0 };
-
-      // 4) ลบ HeaderIssueTempFraction
-      const deletedHeaderIssueTempFraction =
-        await tx.headerIssueTempFraction.delete({
-          where: {
-            id: headerFractionTempIdInt,
+          select: {
+            id: true,
+            boxId: true,
           },
         });
 
-      return {
-        headerFractionTempId: headerFractionTempIdInt,
-        headerTempId: current.headerId,
+        const boxIds = maps.map((m) => m.boxId).filter((id) => id != null);
 
-        deletedMapHeaderIssueTempFractionCount:
-          deletedMapHeaderIssueTempFraction.count,
+        // 2) ลบ MapHeaderIssueTempFraction ก่อน
+        // เพราะ map มี FK ไปหา BoxIssueTemp และ HeaderIssueTempFraction
+        const deletedMapHeaderIssueTempFraction =
+          await tx.mapHeaderIssueTempFraction.deleteMany({
+            where: {
+              headerFractionId: headerFractionTempIdInt,
+            },
+          });
 
-        deletedBoxIssueTempCount:
-          deletedBoxIssueTemp.count,
+        // 3) ลบ BoxIssueTemp ที่ถูก map กับ Header Fraction นี้
+        const deletedBoxIssueTemp =
+          boxIds.length > 0
+            ? await tx.boxIssueTemp.deleteMany({
+                where: {
+                  id: {
+                    in: boxIds,
+                  },
+                },
+              })
+            : { count: 0 };
 
-        deletedHeaderIssueTempFraction,
-      };
-    });
+        // 4) ลบ HeaderIssueTempFraction
+        const deletedHeaderIssueTempFraction =
+          await tx.headerIssueTempFraction.delete({
+            where: {
+              id: headerFractionTempIdInt,
+            },
+          });
 
-    return res.send({
-      message: "delete_header_fraction_temp_success",
-      data: result,
-    });
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
+        return {
+          headerFractionTempId: headerFractionTempIdInt,
+          headerTempId: current.headerId,
 
+          deletedMapHeaderIssueTempFractionCount:
+            deletedMapHeaderIssueTempFraction.count,
 
+          deletedBoxIssueTempCount: deletedBoxIssueTemp.count,
 
+          deletedHeaderIssueTempFraction,
+        };
+      });
 
-
-
-deleteAllFractionBoxTemp: async (req, res) => {
-  try {
-    const { headerFractionId } = req.body;
-
-    if (headerFractionId == null) {
-      return res.status(400).send({
-        message: "missing_required_fields"
+      return res.send({
+        message: "delete_header_fraction_temp_success",
+        data: result,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
       });
     }
+  },
 
-    const headerFractionIdInt = parseInt(headerFractionId);
+  deleteAllFractionBoxTemp: async (req, res) => {
+    try {
+      const { headerFractionId } = req.body;
 
-    if (Number.isNaN(headerFractionIdInt)) {
-      return res.status(400).send({
-        message: "invalid_headerFractionId"
-      });
-    }
+      if (headerFractionId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1) หา boxId ทั้งหมดที่อยู่ใน headerFractionId นี้ก่อน
-      const maps = await tx.mapHeaderIssueTempFraction.findMany({
-        where: {
-          headerFractionId: headerFractionIdInt,
-        },
-        select: {
-          id: true,
-          boxId: true,
-        },
-      });
+      const headerFractionIdInt = parseInt(headerFractionId);
 
-      const boxIds = maps
-        .map((m) => m.boxId)
-        .filter((id) => id != null);
+      if (Number.isNaN(headerFractionIdInt)) {
+        return res.status(400).send({
+          message: "invalid_headerFractionId",
+        });
+      }
 
-      // 2) ลบ MapHeaderIssueTempFraction ก่อน
-      // เพราะ table นี้อ้างอิง BoxIssueTemp อยู่
-      const deletedMapHeaderIssueTempFraction =
-        await tx.mapHeaderIssueTempFraction.deleteMany({
+      const result = await prisma.$transaction(async (tx) => {
+        // 1) หา boxId ทั้งหมดที่อยู่ใน headerFractionId นี้ก่อน
+        const maps = await tx.mapHeaderIssueTempFraction.findMany({
           where: {
             headerFractionId: headerFractionIdInt,
           },
-        });
-
-      // 3) ลบ BoxIssueTemp ตาม boxId ที่เก็บไว้
-      const deletedBoxIssueTemp =
-        boxIds.length > 0
-          ? await tx.boxIssueTemp.deleteMany({
-              where: {
-                id: {
-                  in: boxIds,
-                },
-              },
-            })
-          : { count: 0 };
-
-      return {
-        headerFractionId: headerFractionIdInt,
-        boxIds,
-
-        deletedMapHeaderIssueTempFractionCount:
-          deletedMapHeaderIssueTempFraction.count,
-
-        deletedBoxIssueTempCount:
-          deletedBoxIssueTemp.count,
-      };
-    });
-
-    return res.send({
-      message: "delete_all_fraction_box_temp_success",
-      data: result,
-    });
-
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
-
-
-deleteFractionBoxTemp: async (req, res) => {
-  try {
-    const { boxId } = req.body;
-
-    if (boxId == null) {
-      return res.status(400).send({
-        message: "missing_required_fields"
-      });
-    }
-
-    const boxIdInt = parseInt(boxId);
-
-    if (Number.isNaN(boxIdInt)) {
-      return res.status(400).send({
-        message: "invalid_boxId"
-      });
-    }
-
-    const currentBox = await prisma.boxIssueTemp.findFirst({
-      where: {
-        id: boxIdInt,
-        status: "use"
-      },
-      select: {
-        id: true,
-        headerId: true,
-        itemNo: true,
-        itemName: true,
-        wosNo: true,
-        lotNo: true,
-        qty: true,
-      },
-    });
-
-    if (!currentBox) {
-      return res.status(404).send({
-        message: "boxIssueTemp_not_found"
-      });
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      // 1) ลบ MapHeaderIssueTempFraction ก่อน
-      const deletedMapHeaderIssueTempFraction =
-        await tx.mapHeaderIssueTempFraction.deleteMany({
-          where: {
-            boxId: boxIdInt,
+          select: {
+            id: true,
+            boxId: true,
           },
         });
 
-      // 2) ลบ BoxIssueTemp จริง
-      const deletedBoxIssueTemp = await tx.boxIssueTemp.delete({
+        const boxIds = maps.map((m) => m.boxId).filter((id) => id != null);
+
+        // 2) ลบ MapHeaderIssueTempFraction ก่อน
+        // เพราะ table นี้อ้างอิง BoxIssueTemp อยู่
+        const deletedMapHeaderIssueTempFraction =
+          await tx.mapHeaderIssueTempFraction.deleteMany({
+            where: {
+              headerFractionId: headerFractionIdInt,
+            },
+          });
+
+        // 3) ลบ BoxIssueTemp ตาม boxId ที่เก็บไว้
+        const deletedBoxIssueTemp =
+          boxIds.length > 0
+            ? await tx.boxIssueTemp.deleteMany({
+                where: {
+                  id: {
+                    in: boxIds,
+                  },
+                },
+              })
+            : { count: 0 };
+
+        return {
+          headerFractionId: headerFractionIdInt,
+          boxIds,
+
+          deletedMapHeaderIssueTempFractionCount:
+            deletedMapHeaderIssueTempFraction.count,
+
+          deletedBoxIssueTempCount: deletedBoxIssueTemp.count,
+        };
+      });
+
+      return res.send({
+        message: "delete_all_fraction_box_temp_success",
+        data: result,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  deleteFractionBoxTemp: async (req, res) => {
+    try {
+      const { boxId } = req.body;
+
+      if (boxId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const boxIdInt = parseInt(boxId);
+
+      if (Number.isNaN(boxIdInt)) {
+        return res.status(400).send({
+          message: "invalid_boxId",
+        });
+      }
+
+      const currentBox = await prisma.boxIssueTemp.findFirst({
         where: {
           id: boxIdInt,
+          status: "use",
+        },
+        select: {
+          id: true,
+          headerId: true,
+          itemNo: true,
+          itemName: true,
+          wosNo: true,
+          lotNo: true,
+          qty: true,
         },
       });
 
-      return {
-        boxId: boxIdInt,
-        deletedMapHeaderIssueTempFractionCount:
-          deletedMapHeaderIssueTempFraction.count,
-        deletedBoxIssueTemp,
-      };
-    });
+      if (!currentBox) {
+        return res.status(404).send({
+          message: "boxIssueTemp_not_found",
+        });
+      }
 
-    return res.send({
-      message: "delete_fraction_box_temp_success",
-      data: result,
-    });
+      const result = await prisma.$transaction(async (tx) => {
+        // 1) ลบ MapHeaderIssueTempFraction ก่อน
+        const deletedMapHeaderIssueTempFraction =
+          await tx.mapHeaderIssueTempFraction.deleteMany({
+            where: {
+              boxId: boxIdInt,
+            },
+          });
 
-  } catch (e) {
-    return res.status(500).send({
-      error: e.message
-    });
-  }
-},
+        // 2) ลบ BoxIssueTemp จริง
+        const deletedBoxIssueTemp = await tx.boxIssueTemp.delete({
+          where: {
+            id: boxIdInt,
+          },
+        });
 
+        return {
+          boxId: boxIdInt,
+          deletedMapHeaderIssueTempFractionCount:
+            deletedMapHeaderIssueTempFraction.count,
+          deletedBoxIssueTemp,
+        };
+      });
 
-
-
-printFullLabel: async (req, res) => {
-  let browser;
-
-  try {
-    const { default: puppeteer } = await import('puppeteer');
-
-    const { headerId, labelType } = req.body || {};
-
-    if (headerId == null) {
-      return res.status(400).send({
-        message: 'missing_headerId'
+      return res.send({
+        message: "delete_fraction_box_temp_success",
+        data: result,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
       });
     }
+  },
 
-    const headerIdInt = parseInt(headerId);
+  printFullLabel: async (req, res) => {
+    let browser;
 
-    if (Number.isNaN(headerIdInt)) {
-      return res.status(400).send({
-        message: 'invalid_headerId'
-      });
-    }
+    try {
+      const { default: puppeteer } = await import("puppeteer");
 
+      const { headerId, labelType } = req.body || {};
 
-    /* =====================================================
+      if (headerId == null) {
+        return res.status(400).send({
+          message: "missing_headerId",
+        });
+      }
+
+      const headerIdInt = parseInt(headerId);
+
+      if (Number.isNaN(headerIdInt)) {
+        return res.status(400).send({
+          message: "invalid_headerId",
+        });
+      }
+
+      /* =====================================================
        TEMP FIXED VALUE
     ===================================================== */
 
-    const FIX_OQC_LOT_NO = 'S67258';
-    const FIX_ID_PALLET = '26801001';
-    const FIX_ID_LABEL = '26801004';
-    const FIX_LOCATION_DISPLAY = 'H101';
+      const FIX_OQC_LOT_NO = "S67258";
+      const FIX_ID_PALLET = "26801001";
+      const FIX_ID_LABEL = "26801004";
+      const FIX_LOCATION_DISPLAY = "H101";
 
-    const FIX_LABEL_TYPE =
-      (labelType || 'FG').toString().trim() || 'FG';
+      const FIX_LABEL_TYPE = (labelType || "FG").toString().trim() || "FG";
 
-
-    /* =====================================================
+      /* =====================================================
        HELPERS
     ===================================================== */
 
-    const escapeHtml = (value) => {
-      return (value ?? '')
-        .toString()
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    };
+      const escapeHtml = (value) => {
+        return (value ?? "")
+          .toString()
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      };
 
+      const formatNumber = (value) => {
+        const n = Number(value || 0);
 
-    const formatNumber = (value) => {
-      const n = Number(value || 0);
+        if (!Number.isFinite(n)) {
+          return "0";
+        }
 
-      if (!Number.isFinite(n)) {
-        return '0';
-      }
+        return n.toLocaleString("en-US");
+      };
 
-      return n.toLocaleString('en-US');
-    };
+      const formatDateDMY = (value) => {
+        if (!value) {
+          return "";
+        }
 
+        const d = new Date(value);
 
-    const formatDateDMY = (value) => {
-      if (!value) {
-        return '';
-      }
+        if (Number.isNaN(d.getTime())) {
+          return "";
+        }
 
-      const d = new Date(value);
+        return (
+          `${d.getDate()}/` + `${d.getMonth() + 1}/` + `${d.getFullYear()}`
+        );
+      };
 
-      if (Number.isNaN(d.getTime())) {
-        return '';
-      }
-
-      return (
-        `${d.getDate()}/` +
-        `${d.getMonth() + 1}/` +
-        `${d.getFullYear()}`
-      );
-    };
-
-
-    /* =====================================================
+      /* =====================================================
        SHORT LOT NO
     ===================================================== */
 
-    const getShortLotNo = (lotNo) => {
-      const raw =
-        (lotNo || '')
-          .toString()
-          .trim();
+      const getShortLotNo = (lotNo) => {
+        const raw = (lotNo || "").toString().trim();
 
-      if (!raw) {
-        return '';
-      }
+        if (!raw) {
+          return "";
+        }
 
-      if (raw.length >= 6) {
-        return raw.slice(1, 6);
-      }
+        if (raw.length >= 6) {
+          return raw.slice(1, 6);
+        }
 
-      return raw;
-    };
+        return raw;
+      };
 
-
-    /* =====================================================
+      /* =====================================================
        CHUNK ARRAY
     ===================================================== */
 
-    const chunkArray = (arr, size) => {
-      const result = [];
+      const chunkArray = (arr, size) => {
+        const result = [];
 
-      for (let i = 0; i < arr.length; i += size) {
-        result.push(
-          arr.slice(i, i + size)
-        );
-      }
+        for (let i = 0; i < arr.length; i += size) {
+          result.push(arr.slice(i, i + size));
+        }
 
-      return result;
-    };
+        return result;
+      };
 
-
-    /* =====================================================
+      /* =====================================================
        QTY DISPLAY
     ===================================================== */
 
-    const qtyMultiplyList = (qtyList = []) => {
-      const qtyMap = new Map();
+      const qtyMultiplyList = (qtyList = []) => {
+        const qtyMap = new Map();
 
-      qtyList.forEach((qty) => {
-        const n = Number(qty || 0);
+        qtyList.forEach((qty) => {
+          const n = Number(qty || 0);
 
-        qtyMap.set(
-          n,
-          (qtyMap.get(n) || 0) + 1
-        );
-      });
+          qtyMap.set(n, (qtyMap.get(n) || 0) + 1);
+        });
 
-      return Array
-        .from(qtyMap.entries())
-        .map(([qty, count]) => ({
+        return Array.from(qtyMap.entries()).map(([qty, count]) => ({
           qty,
           count,
-          text: `${formatNumber(qty)} x ${count}`
+          text: `${formatNumber(qty)} x ${count}`,
         }));
-    };
+      };
 
-
-    /* =====================================================
+      /* =====================================================
        IMAGE
     ===================================================== */
 
-    const toPngDataUri = (buffer) => {
-      return (
-        `data:image/png;base64,` +
-        buffer.toString('base64')
-      );
-    };
+      const toPngDataUri = (buffer) => {
+        return `data:image/png;base64,` + buffer.toString("base64");
+      };
 
-
-    /* =====================================================
+      /* =====================================================
        BARCODE
     ===================================================== */
 
-    const generateBarcodeDataUrl = async (
-      text,
-      opts = {}
-    ) => {
+      const generateBarcodeDataUrl = async (text, opts = {}) => {
+        const png = await bwipjs.toBuffer({
+          bcid: "code128",
 
-      const png =
-        await bwipjs.toBuffer({
-          bcid:
-            'code128',
+          text: String(text || ""),
 
-          text:
-            String(text || ''),
+          scale: opts.scale || 2,
 
-          scale:
-            opts.scale || 2,
+          height: opts.height || 18,
 
-          height:
-            opts.height || 18,
+          includetext: false,
 
-          includetext:
-            false,
+          textxalign: "center",
 
-          textxalign:
-            'center',
-
-          backgroundcolor:
-            'FFFFFF'
+          backgroundcolor: "FFFFFF",
         });
 
-      return toPngDataUri(
-        png
-      );
-    };
+        return toPngDataUri(png);
+      };
 
-
-    /* =====================================================
+      /* =====================================================
        QR CODE
     ===================================================== */
 
-    const generateQrDataUrl = async (
-      text,
-      width = 150
-    ) => {
+      const generateQrDataUrl = async (text, width = 150) => {
+        return await QRCode.toDataURL(String(text ?? ""), {
+          errorCorrectionLevel: "M",
 
-      return await QRCode.toDataURL(
-        String(text ?? ''),
-        {
-          errorCorrectionLevel:
-            'M',
+          margin: 1,
 
-          margin:
-            1,
+          width: width,
+        });
+      };
 
-          width:
-            width
-        }
-      );
-    };
-
-
-    /* =====================================================
+      /* =====================================================
        FIX LENGTH
     ===================================================== */
 
-    const padRight = (
-      value,
-      len
-    ) => {
+      const padRight = (value, len) => {
+        return String(value ?? "")
+          .padEnd(len, " ")
+          .slice(0, len);
+      };
 
-      return String(value ?? '')
-        .padEnd(
-          len,
-          ' '
-        )
-        .slice(
-          0,
-          len
-        );
-    };
+      const padLeft = (value, len) => {
+        return String(value ?? "")
+          .padStart(len, " ")
+          .slice(-len);
+      };
 
-
-    const padLeft = (
-      value,
-      len
-    ) => {
-
-      return String(value ?? '')
-        .padStart(
-          len,
-          ' '
-        )
-        .slice(
-          -len
-        );
-    };
-
-
-    /* =====================================================
+      /* =====================================================
        QR STOCK IN
     ===================================================== */
 
-    const buildStockInQrText = ({
-      oqcLotNo,
-      dieNo,
-      lotNo,
-      totalQty
-    }) => {
+      const buildStockInQrText = ({ oqcLotNo, dieNo, lotNo, totalQty }) => {
+        const oqcPart = padRight(oqcLotNo || "", 6);
 
-      const oqcPart =
-        padRight(
-          oqcLotNo || '',
-          6
-        );
+        const scPart = padRight("", 1);
 
-      const scPart =
-        padRight(
-          '',
-          1
-        );
+        const diePart = padRight(dieNo || "", 10);
 
-      const diePart =
-        padRight(
-          dieNo || '',
-          10
-        );
+        const lotPart = padRight(lotNo || "", 12);
 
-      const lotPart =
-        padRight(
-          lotNo || '',
-          12
-        );
+        const qtyPart = padLeft(totalQty == null ? "" : String(totalQty), 13);
 
-      const qtyPart =
-        padLeft(
-          totalQty == null
-            ? ''
-            : String(totalQty),
-          13
-        );
+        return oqcPart + scPart + diePart + lotPart + qtyPart;
+      };
 
-
-      return (
-        oqcPart +
-        scPart +
-        diePart +
-        lotPart +
-        qtyPart
-      );
-    };
-
-
-    /* =====================================================
+      /* =====================================================
        QR ISSUE D/O
     ===================================================== */
 
-    const buildIssueDoQrText = ({
-      lotNo,
-      dieNo,
-      oqcLotNo,
-      idPallet
-    }) => {
+      const buildIssueDoQrText = ({ lotNo, dieNo, oqcLotNo, idPallet }) => {
+        const lotPart = padRight(lotNo || "", 8);
 
-      const lotPart =
-        padRight(
-          lotNo || '',
-          8
-        );
+        const diePart = padRight(dieNo || "", 5);
 
-      const diePart =
-        padRight(
-          dieNo || '',
-          5
-        );
+        const boxQtyPart = padRight("", 3);
 
-      const boxQtyPart =
-        padRight(
-          '',
-          3
-        );
-
-      const oqcPalletPart =
-        padRight(
-          `${oqcLotNo || ''}/${idPallet || ''}`,
+        const oqcPalletPart = padRight(
+          `${oqcLotNo || ""}/${idPallet || ""}`,
           15
         );
 
-      const remarkPart =
-        padRight(
-          '',
-          15
-        );
+        const remarkPart = padRight("", 15);
 
+        return lotPart + diePart + boxQtyPart + oqcPalletPart + remarkPart;
+      };
 
-      return (
-        lotPart +
-        diePart +
-        boxQtyPart +
-        oqcPalletPart +
-        remarkPart
-      );
-    };
-
-
-    /* =====================================================
+      /* =====================================================
        LOAD HEADER
     ===================================================== */
 
-    const header =
-      await prisma
-        .headerIssueTemp
-        .findFirst({
-          where: {
-            id:
-              headerIdInt,
+      const header = await prisma.headerIssueTemp.findFirst({
+        where: {
+          id: headerIdInt,
 
-            status:
-              'use'
-          },
+          status: "use",
+        },
 
-          include: {
-            User:
-              true
-          }
-        });
-
-
-    if (!header) {
-      return res.status(400).send({
-        message:
-          'header_issueTemp_notFound'
+        include: {
+          User: true,
+        },
       });
-    }
 
+      if (!header) {
+        return res.status(400).send({
+          message: "header_issueTemp_notFound",
+        });
+      }
 
-    /* =====================================================
+      /* =====================================================
        LOCATION
     ===================================================== */
 
-    const location =
-      await prisma
-        .location
-        .findFirst({
-          where: {
-            id:
-              header.locationId,
+      const location = await prisma.location.findFirst({
+        where: {
+          id: header.locationId,
 
-            status:
-              'use'
-          }
-        });
+          status: "use",
+        },
+      });
 
-
-    /* =====================================================
+      /* =====================================================
        NORMAL BOX
     ===================================================== */
 
-    const normalRows =
-      await prisma
-        .boxIssueTemp
-        .findMany({
-          where: {
-            headerId:
-              headerIdInt,
+      const normalRows = await prisma.boxIssueTemp.findMany({
+        where: {
+          headerId: headerIdInt,
 
-            status:
-              'use',
+          status: "use",
 
-            MapHeaderIssueTempFraction: {
-              none: {
-                headerId:
-                  headerIdInt,
+          MapHeaderIssueTempFraction: {
+            none: {
+              headerId: headerIdInt,
 
-                status:
-                  'use'
-              }
-            }
+              status: "use",
+            },
           },
+        },
 
-          orderBy: {
-            id:
-              'asc'
-          },
+        orderBy: {
+          id: "asc",
+        },
 
-          select: {
-            id:
-              true,
+        select: {
+          id: true,
 
-            headerId:
-              true,
+          headerId: true,
 
-            itemNo:
-              true,
+          itemNo: true,
 
-            itemName:
-              true,
+          itemName: true,
 
-            wosNo:
-              true,
+          wosNo: true,
 
-            dwg:
-              true,
+          dwg: true,
 
-            dieNo:
-              true,
+          dieNo: true,
 
-            lotNo:
-              true,
+          lotNo: true,
 
-            qty:
-              true
-          }
-        });
+          qty: true,
+        },
+      });
 
-
-    /* =====================================================
+      /* =====================================================
        FRACTION BOX
     ===================================================== */
 
-    const fractionMaps =
-      await prisma
-        .mapHeaderIssueTempFraction
-        .findMany({
-          where: {
-            headerId:
-              headerIdInt,
+      const fractionMaps = await prisma.mapHeaderIssueTempFraction.findMany({
+        where: {
+          headerId: headerIdInt,
 
-            status:
-              'use'
+          status: "use",
+        },
+
+        orderBy: {
+          id: "asc",
+        },
+
+        include: {
+          BoxIssueTemp: {
+            select: {
+              id: true,
+
+              headerId: true,
+
+              itemNo: true,
+
+              itemName: true,
+
+              wosNo: true,
+
+              dwg: true,
+
+              dieNo: true,
+
+              lotNo: true,
+
+              qty: true,
+
+              status: true,
+            },
           },
+        },
+      });
 
-          orderBy: {
-            id:
-              'asc'
-          },
-
-          include: {
-            BoxIssueTemp: {
-              select: {
-                id:
-                  true,
-
-                headerId:
-                  true,
-
-                itemNo:
-                  true,
-
-                itemName:
-                  true,
-
-                wosNo:
-                  true,
-
-                dwg:
-                  true,
-
-                dieNo:
-                  true,
-
-                lotNo:
-                  true,
-
-                qty:
-                  true,
-
-                status:
-                  true
-              }
-            }
-          }
-        });
-
-
-    const fractionRows =
-      fractionMaps
+      const fractionRows = fractionMaps
 
         .filter((map) => {
-          return (
-            map.BoxIssueTemp &&
-            map.BoxIssueTemp.status === 'use'
-          );
+          return map.BoxIssueTemp && map.BoxIssueTemp.status === "use";
         })
 
         .map((map) => {
           return {
-            id:
-              map.BoxIssueTemp.id,
+            id: map.BoxIssueTemp.id,
 
-            headerId:
-              map.BoxIssueTemp.headerId,
+            headerId: map.BoxIssueTemp.headerId,
 
-            itemNo:
-              map.BoxIssueTemp.itemNo,
+            itemNo: map.BoxIssueTemp.itemNo,
 
-            itemName:
-              map.BoxIssueTemp.itemName,
+            itemName: map.BoxIssueTemp.itemName,
 
-            wosNo:
-              map.BoxIssueTemp.wosNo,
+            wosNo: map.BoxIssueTemp.wosNo,
 
-            dwg:
-              map.BoxIssueTemp.dwg,
+            dwg: map.BoxIssueTemp.dwg,
 
-            dieNo:
-              map.BoxIssueTemp.dieNo,
+            dieNo: map.BoxIssueTemp.dieNo,
 
-            lotNo:
-              map.BoxIssueTemp.lotNo,
+            lotNo: map.BoxIssueTemp.lotNo,
 
-            qty:
-              map.BoxIssueTemp.qty
+            qty: map.BoxIssueTemp.qty,
           };
         });
 
-
-    /* =====================================================
+      /* =====================================================
        FIRST ROW
     ===================================================== */
 
-    const firstAnyRow =
-      normalRows[0] ||
-      fractionRows[0] ||
-      null;
+      const firstAnyRow = normalRows[0] || fractionRows[0] || null;
 
-
-    /* =====================================================
+      /* =====================================================
        GROUP BY LOT
     ===================================================== */
 
-    const groupMap =
-      new Map();
+      const groupMap = new Map();
 
+      const addRowToGroup = (row, kind) => {
+        const shortLotNo = getShortLotNo(row.lotNo || "");
 
-    const addRowToGroup = (
-      row,
-      kind
-    ) => {
+        const key = shortLotNo || "-";
 
-      const shortLotNo =
-        getShortLotNo(
-          row.lotNo || ''
-        );
+        if (!groupMap.has(key)) {
+          groupMap.set(key, {
+            lotNo: shortLotNo || "-",
 
-      const key =
-        shortLotNo || '-';
+            dwg: (row.dwg || "").toString().trim(),
 
+            dieNo: (row.dieNo || "").toString().trim(),
 
-      if (!groupMap.has(key)) {
+            itemNo: (row.itemNo || "").toString().trim(),
 
-        groupMap.set(
-          key,
-          {
-            lotNo:
-              shortLotNo || '-',
+            fullQtyList: [],
 
-            dwg:
-              (row.dwg || '')
-                .toString()
-                .trim(),
+            partialQtyList: [],
+          });
+        }
 
-            dieNo:
-              (row.dieNo || '')
-                .toString()
-                .trim(),
+        const target = groupMap.get(key);
 
-            itemNo:
-              (row.itemNo || '')
-                .toString()
-                .trim(),
+        const qty = Number(row.qty || 0);
 
-            fullQtyList:
-              [],
+        if (kind === "FULL") {
+          target.fullQtyList.push(qty);
+        } else {
+          target.partialQtyList.push(qty);
+        }
+      };
 
-            partialQtyList:
-              []
-          }
-        );
-      }
+      normalRows.forEach((row) => {
+        addRowToGroup(row, "FULL");
+      });
 
+      fractionRows.forEach((row) => {
+        addRowToGroup(row, "PARTIAL");
+      });
 
-      const target =
-        groupMap.get(key);
-
-
-      const qty =
-        Number(
-          row.qty || 0
-        );
-
-
-      if (kind === 'FULL') {
-
-        target
-          .fullQtyList
-          .push(qty);
-
-      } else {
-
-        target
-          .partialQtyList
-          .push(qty);
-
-      }
-    };
-
-
-    normalRows.forEach(
-      (row) => {
-        addRowToGroup(
-          row,
-          'FULL'
-        );
-      }
-    );
-
-
-    fractionRows.forEach(
-      (row) => {
-        addRowToGroup(
-          row,
-          'PARTIAL'
-        );
-      }
-    );
-
-
-    /* =====================================================
+      /* =====================================================
        GROUP RESULT
     ===================================================== */
 
-    let groupedRows =
-      Array
-        .from(
-          groupMap.values()
-        )
-        .map(
-          (
-            group,
-            index
-          ) => {
+      let groupedRows = Array.from(groupMap.values()).map((group, index) => {
+        const fullQtyItems = qtyMultiplyList(group.fullQtyList);
 
-            const fullQtyItems =
-              qtyMultiplyList(
-                group.fullQtyList
-              );
+        const partialQtyItems = qtyMultiplyList(group.partialQtyList);
 
+        const fullTotal = group.fullQtyList.reduce((sum, qty) => {
+          return sum + Number(qty || 0);
+        }, 0);
 
-            const partialQtyItems =
-              qtyMultiplyList(
-                group.partialQtyList
-              );
+        const partialTotal = group.partialQtyList.reduce((sum, qty) => {
+          return sum + Number(qty || 0);
+        }, 0);
 
+        return {
+          no: index + 1,
 
-            const fullTotal =
-              group
-                .fullQtyList
-                .reduce(
-                  (
-                    sum,
-                    qty
-                  ) => {
-                    return (
-                      sum +
-                      Number(qty || 0)
-                    );
-                  },
-                  0
-                );
+          lotNo: group.lotNo,
 
+          dwg: group.dwg,
 
-            const partialTotal =
-              group
-                .partialQtyList
-                .reduce(
-                  (
-                    sum,
-                    qty
-                  ) => {
-                    return (
-                      sum +
-                      Number(qty || 0)
-                    );
-                  },
-                  0
-                );
+          dieNo: group.dieNo,
 
+          itemNo: group.itemNo,
 
-            return {
-              no:
-                index + 1,
+          fullBoxText: fullQtyItems.map((item) => item.text),
 
-              lotNo:
-                group.lotNo,
+          partialBoxText: partialQtyItems.map((item) => item.text),
 
-              dwg:
-                group.dwg,
+          totalQty: fullTotal + partialTotal,
+        };
+      });
 
-              dieNo:
-                group.dieNo,
-
-              itemNo:
-                group.itemNo,
-
-              fullBoxText:
-                fullQtyItems.map(
-                  (item) =>
-                    item.text
-                ),
-
-              partialBoxText:
-                partialQtyItems.map(
-                  (item) =>
-                    item.text
-                ),
-
-              totalQty:
-                fullTotal +
-                partialTotal
-            };
-          }
-        );
-
-
-    /* =====================================================
+      /* =====================================================
        SORT
     ===================================================== */
 
-    groupedRows =
-      groupedRows.sort(
-        (
-          a,
-          b
-        ) => {
+      groupedRows = groupedRows.sort((a, b) => {
+        return String(a.lotNo).localeCompare(String(b.lotNo), undefined, {
+          numeric: true,
 
-          return String(
-            a.lotNo
-          ).localeCompare(
-            String(
-              b.lotNo
-            ),
-            undefined,
-            {
-              numeric:
-                true,
+          sensitivity: "base",
+        });
+      });
 
-              sensitivity:
-                'base'
-            }
-          );
-        }
-      );
+      groupedRows = groupedRows.map((row, index) => {
+        return {
+          ...row,
 
+          no: index + 1,
+        };
+      });
 
-    groupedRows =
-      groupedRows.map(
-        (
-          row,
-          index
-        ) => {
-
-          return {
-            ...row,
-
-            no:
-              index + 1
-          };
-        }
-      );
-
-
-    /* =====================================================
+      /* =====================================================
        HEADER VALUES
     ===================================================== */
 
-    const itemNoForBarcode =
-      firstAnyRow?.itemNo ||
-      header.itemNo ||
-      '';
+      const itemNoForBarcode = firstAnyRow?.itemNo || header.itemNo || "";
 
+      const itemName = header.itemName || firstAnyRow?.itemName || "";
 
-    const itemName =
-      header.itemName ||
-      firstAnyRow?.itemName ||
-      '';
+      const idPallet = FIX_ID_PALLET;
 
+      const idLabel = FIX_ID_LABEL;
 
-    const idPallet =
-      FIX_ID_PALLET;
+      const oqcLotNo = FIX_OQC_LOT_NO;
 
+      const displayLocation = FIX_LOCATION_DISPLAY;
 
-    const idLabel =
-      FIX_ID_LABEL;
-
-
-    const oqcLotNo =
-      FIX_OQC_LOT_NO;
-
-
-    const displayLocation =
-      FIX_LOCATION_DISPLAY;
-
-
-    /* =====================================================
+      /* =====================================================
        ITEM BARCODE
     ===================================================== */
 
-    const topLeftBarcode =
-      await generateBarcodeDataUrl(
-        itemNoForBarcode,
-        {
-          scale:
-            3.0,
+      const topLeftBarcode = await generateBarcodeDataUrl(itemNoForBarcode, {
+        scale: 3.0,
 
-          height:
-            28
-        }
-      );
+        height: 28,
+      });
 
-
-    /* =====================================================
+      /* =====================================================
        ID PALLET / LABEL QR
     ===================================================== */
 
-    const idPalletLabelQrText =
-      `${idPallet}\t${idLabel}`;
+      const idPalletLabelQrText = `${idPallet}\t${idLabel}`;
 
+      const idPalletLabelQr = await generateQrDataUrl(idPalletLabelQrText, 140);
 
-    const idPalletLabelQr =
-      await generateQrDataUrl(
-        idPalletLabelQrText,
-        140
-      );
-
-
-    /* =====================================================
+      /* =====================================================
        LOT QR
     ===================================================== */
 
-    const groupedRowsWithQr =
-      [];
+      const groupedRowsWithQr = [];
 
+      for (const row of groupedRows) {
+        const stockInQrText = buildStockInQrText({
+          oqcLotNo: oqcLotNo,
 
-    for (
-      const row
-      of groupedRows
-    ) {
+          dieNo: row.dieNo || "",
 
-      const stockInQrText =
-        buildStockInQrText({
-          oqcLotNo:
-            oqcLotNo,
+          lotNo: row.lotNo || "",
 
-          dieNo:
-            row.dieNo || '',
-
-          lotNo:
-            row.lotNo || '',
-
-          totalQty:
-            row.totalQty || 0
+          totalQty: row.totalQty || 0,
         });
 
+        const issueDoQrText = buildIssueDoQrText({
+          lotNo: row.lotNo || "",
 
-      const issueDoQrText =
-        buildIssueDoQrText({
-          lotNo:
-            row.lotNo || '',
+          dieNo: row.dieNo || "",
 
-          dieNo:
-            row.dieNo || '',
+          oqcLotNo: oqcLotNo,
 
-          oqcLotNo:
-            oqcLotNo,
-
-          idPallet:
-            idPallet
+          idPallet: idPallet,
         });
 
+        const stockInQr = await generateQrDataUrl(stockInQrText);
 
-      const stockInQr =
-        await generateQrDataUrl(
-          stockInQrText
-        );
+        const issueDoQr = await generateQrDataUrl(issueDoQrText);
 
+        groupedRowsWithQr.push({
+          ...row,
 
-      const issueDoQr =
-        await generateQrDataUrl(
-          issueDoQrText
-        );
+          stockInQrText,
+          issueDoQrText,
 
+          stockInQr,
+          issueDoQr,
+        });
+      }
 
-      groupedRowsWithQr.push({
-        ...row,
-
-        stockInQrText,
-        issueDoQrText,
-
-        stockInQr,
-        issueDoQr
-      });
-    }
-
-
-    /* =====================================================
+      /* =====================================================
        4 GROUP / PAGE
     ===================================================== */
 
-    const rowsPerPage =
-      4;
+      const rowsPerPage = 4;
 
+      const pageGroups =
+        groupedRowsWithQr.length > 0
+          ? chunkArray(groupedRowsWithQr, rowsPerPage)
+          : [[]];
 
-    const pageGroups =
-      groupedRowsWithQr.length > 0
-
-        ? chunkArray(
-            groupedRowsWithQr,
-            rowsPerPage
-          )
-
-        : [
-            []
-          ];
-
-
-    /* =====================================================
+      /* =====================================================
        GRAND TOTAL
     ===================================================== */
 
-    const grandTotalQty =
-      groupedRowsWithQr.reduce(
-        (
-          sum,
-          row
-        ) => {
+      const grandTotalQty = groupedRowsWithQr.reduce((sum, row) => {
+        return sum + Number(row.totalQty || 0);
+      }, 0);
 
-          return (
-            sum +
-            Number(
-              row.totalQty || 0
-            )
-          );
-
-        },
-        0
-      );
-
-
-    /* =====================================================
+      /* =====================================================
        QTY CELL
     ===================================================== */
 
-    const renderQtyCell =
-      (items) => {
-
-        if (
-          !items ||
-          !items.length
-        ) {
-
+      const renderQtyCell = (items) => {
+        if (!items || !items.length) {
           return `
             <div class="cell-line">
               -
@@ -2742,30 +2230,22 @@ printFullLabel: async (req, res) => {
           `;
         }
 
-
         return items
-          .map(
-            (text) => {
-
-              return `
+          .map((text) => {
+            return `
                 <div class="cell-line">
                   ${escapeHtml(text)}
                 </div>
               `;
-
-            }
-          )
-          .join('');
+          })
+          .join("");
       };
 
-
-    /* =====================================================
+      /* =====================================================
        EMPTY ROW
     ===================================================== */
 
-    const renderEmptyRow =
-      () => {
-
+      const renderEmptyRow = () => {
         return `
           <tr class="empty-row">
 
@@ -2781,37 +2261,21 @@ printFullLabel: async (req, res) => {
         `;
       };
 
-
-    /* =====================================================
+      /* =====================================================
        TABLE ROWS
     ===================================================== */
 
-    const renderTableRows =
-      (rows) => {
+      const renderTableRows = (rows) => {
+        const htmlRows = [];
 
-        const htmlRows =
-          [];
-
-
-        for (
-          let i = 0;
-          i < rowsPerPage;
-          i++
-        ) {
-
-          const row =
-            rows[i];
-
+        for (let i = 0; i < rowsPerPage; i++) {
+          const row = rows[i];
 
           if (!row) {
-
-            htmlRows.push(
-              renderEmptyRow()
-            );
+            htmlRows.push(renderEmptyRow());
 
             continue;
           }
-
 
           htmlRows.push(`
             <tr class="data-row">
@@ -2825,23 +2289,15 @@ printFullLabel: async (req, res) => {
               </td>
 
               <td class="box-cell">
-                ${renderQtyCell(
-                  row.fullBoxText
-                )}
+                ${renderQtyCell(row.fullBoxText)}
               </td>
 
               <td class="box-cell">
-                ${renderQtyCell(
-                  row.partialBoxText
-                )}
+                ${renderQtyCell(row.partialBoxText)}
               </td>
 
               <td class="total-cell">
-                ${escapeHtml(
-                  formatNumber(
-                    row.totalQty
-                  )
-                )}
+                ${escapeHtml(formatNumber(row.totalQty))}
               </td>
 
               <td class="qr-cell">
@@ -2862,37 +2318,21 @@ printFullLabel: async (req, res) => {
           `);
         }
 
-
-        return htmlRows.join('');
+        return htmlRows.join("");
       };
 
-
-    /* =====================================================
+      /* =====================================================
        RENDER PAGE
     ===================================================== */
 
-    const renderPage =
-      (rows) => {
+      const renderPage = (rows) => {
+        const dwgNo = firstAnyRow?.dwg || "";
 
-        const dwgNo =
-          firstAnyRow?.dwg ||
-          '';
+        const dieNo = firstAnyRow?.dieNo || "";
 
+        const employeeEmpNo = header?.User?.empNo || "";
 
-        const dieNo =
-          firstAnyRow?.dieNo ||
-          '';
-
-
-        const employeeEmpNo =
-          header?.User?.empNo ||
-          '';
-
-
-        const employeeName =
-          header?.User?.name ||
-          '';
-
+        const employeeName = header?.User?.name || "";
 
         return `
           <section class="page">
@@ -2919,18 +2359,14 @@ printFullLabel: async (req, res) => {
 
                   <div class="item-no">
 
-                    ${escapeHtml(
-                      itemNoForBarcode
-                    )}
+                    ${escapeHtml(itemNoForBarcode)}
 
                   </div>
 
 
                   <div class="item-name">
 
-                    ${escapeHtml(
-                      itemName
-                    )}
+                    ${escapeHtml(itemName)}
 
                   </div>
 
@@ -2939,9 +2375,7 @@ printFullLabel: async (req, res) => {
 
                 <div class="top-type">
 
-                  ${escapeHtml(
-                    FIX_LABEL_TYPE
-                  )}
+                  ${escapeHtml(FIX_LABEL_TYPE)}
 
                 </div>
 
@@ -2957,9 +2391,7 @@ printFullLabel: async (req, res) => {
 
                 <div class="highlight-location">
 
-                  Loc. ${escapeHtml(
-                    displayLocation
-                  )}
+                  Loc. ${escapeHtml(displayLocation)}
 
                 </div>
 
@@ -2967,9 +2399,7 @@ printFullLabel: async (req, res) => {
                 <div class="highlight-oqc">
 
                   OQC Lot No.&nbsp;
-                  ${escapeHtml(
-                    oqcLotNo
-                  )}
+                  ${escapeHtml(oqcLotNo)}
 
                 </div>
 
@@ -2997,11 +2427,7 @@ printFullLabel: async (req, res) => {
 
                     <span class="value">
 
-                      ${escapeHtml(
-                        formatDateDMY(
-                          header.dateIssue
-                        )
-                      )}
+                      ${escapeHtml(formatDateDMY(header.dateIssue))}
 
                     </span>
 
@@ -3018,18 +2444,14 @@ printFullLabel: async (req, res) => {
 
                       <span>
 
-                        ${escapeHtml(
-                          employeeEmpNo
-                        )}
+                        ${escapeHtml(employeeEmpNo)}
 
                       </span>
 
 
                       <span>
 
-                        ${escapeHtml(
-                          employeeName
-                        )}
+                        ${escapeHtml(employeeName)}
 
                       </span>
 
@@ -3066,9 +2488,7 @@ printFullLabel: async (req, res) => {
 
                     <span class="value">
 
-                      ${escapeHtml(
-                        dwgNo
-                      )}
+                      ${escapeHtml(dwgNo)}
 
                     </span>
 
@@ -3083,9 +2503,7 @@ printFullLabel: async (req, res) => {
 
                     <span class="value">
 
-                      ${escapeHtml(
-                        dieNo
-                      )}
+                      ${escapeHtml(dieNo)}
 
                     </span>
 
@@ -3100,11 +2518,7 @@ printFullLabel: async (req, res) => {
 
                     <span class="value">
 
-                      ${escapeHtml(
-                        formatNumber(
-                          grandTotalQty
-                        )
-                      )}
+                      ${escapeHtml(formatNumber(grandTotalQty))}
 
                       <span class="pcs">
                         pcs
@@ -3133,9 +2547,7 @@ printFullLabel: async (req, res) => {
                     <div>
 
                       ID Pallet :
-                      ${escapeHtml(
-                        idPallet
-                      )}
+                      ${escapeHtml(idPallet)}
 
                     </div>
 
@@ -3143,9 +2555,7 @@ printFullLabel: async (req, res) => {
                     <div>
 
                       ID Label :
-                      ${escapeHtml(
-                        idLabel
-                      )}
+                      ${escapeHtml(idLabel)}
 
                     </div>
 
@@ -3205,9 +2615,7 @@ printFullLabel: async (req, res) => {
 
                   <tbody>
 
-                    ${renderTableRows(
-                      rows
-                    )}
+                    ${renderTableRows(rows)}
 
                   </tbody>
 
@@ -3233,10 +2641,7 @@ printFullLabel: async (req, res) => {
 
                   <b>
 
-                    ${escapeHtml(
-                      header.moveMentThreeMonth ||
-                      '-'
-                    )}
+                    ${escapeHtml(header.moveMentThreeMonth || "-")}
 
                   </b>
 
@@ -3259,25 +2664,17 @@ printFullLabel: async (req, res) => {
         `;
       };
 
-
-    /* =====================================================
+      /* =====================================================
        ALL PAGE
     ===================================================== */
 
-    const pagesHtml =
-      pageGroups
-        .map(
-          (rows) =>
-            renderPage(rows)
-        )
-        .join('');
+      const pagesHtml = pageGroups.map((rows) => renderPage(rows)).join("");
 
-
-    /* =====================================================
+      /* =====================================================
        HTML
     ===================================================== */
 
-    const html = `
+      const html = `
       <!DOCTYPE html>
 
       <html>
@@ -4256,178 +3653,91 @@ printFullLabel: async (req, res) => {
       </html>
     `;
 
-
-    /* =====================================================
+      /* =====================================================
        PUPPETEER
     ===================================================== */
 
-    browser =
-      await puppeteer.launch({
-        headless:
-          true,
+      browser = await puppeteer.launch({
+        headless: true,
 
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox'
-        ]
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
 
+      const page = await browser.newPage();
 
-    const page =
-      await browser.newPage();
+      await page.setContent(html, {
+        waitUntil: "networkidle0",
+      });
 
-
-    await page.setContent(
-      html,
-      {
-        waitUntil:
-          'networkidle0'
-      }
-    );
-
-
-    /* =====================================================
+      /* =====================================================
        WAIT FONT + IMAGE
     ===================================================== */
 
-    await page.evaluate(
-      async () => {
-
-        if (
-          document.fonts?.ready
-        ) {
-
-          await document
-            .fonts
-            .ready;
-
+      await page.evaluate(async () => {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
         }
 
-
-        const images =
-          Array.from(
-            document.images
-          );
-
+        const images = Array.from(document.images);
 
         await Promise.all(
-
-          images.map(
-            (img) => {
-
-              if (
-                img.complete
-              ) {
-
-                return Promise.resolve();
-
-              }
-
-
-              return new Promise(
-                (resolve) => {
-
-                  img.onload =
-                    resolve;
-
-                  img.onerror =
-                    resolve;
-
-                }
-              );
-
+          images.map((img) => {
+            if (img.complete) {
+              return Promise.resolve();
             }
-          )
 
+            return new Promise((resolve) => {
+              img.onload = resolve;
+
+              img.onerror = resolve;
+            });
+          })
         );
+      });
 
-      }
-    );
-
-
-    /* =====================================================
+      /* =====================================================
        PDF
     ===================================================== */
 
-    const pdfBuffer =
-      await page.pdf({
-        format:
-          'A4',
+      const pdfBuffer = await page.pdf({
+        format: "A4",
 
-        landscape:
-          true,
+        landscape: true,
 
-        printBackground:
-          true,
+        printBackground: true,
 
-        preferCSSPageSize:
-          true,
+        preferCSSPageSize: true,
 
         margin: {
-          top:
-            '5mm',
+          top: "5mm",
 
-          right:
-            '5mm',
+          right: "5mm",
 
-          bottom:
-            '5mm',
+          bottom: "5mm",
 
-          left:
-            '5mm'
-        }
+          left: "5mm",
+        },
       });
 
-
-    /* =====================================================
+      /* =====================================================
        RESPONSE
     ===================================================== */
 
-    res.setHeader(
-      'Content-Type',
-      'application/pdf'
-    );
+      res.setHeader("Content-Type", "application/pdf");
 
+      res.setHeader("Content-Disposition", 'inline; filename="FullLabel.pdf"');
 
-    res.setHeader(
-      'Content-Disposition',
-      'inline; filename="FullLabel.pdf"'
-    );
+      return res.send(pdfBuffer);
+    } catch (error) {
+      console.error("printFullLabel error:", error);
 
-
-    return res.send(
-      pdfBuffer
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      'printFullLabel error:',
-      error
-    );
-
-
-    return res
-      .status(500)
-      .send({
-        error:
-          error?.message ||
-          'Cannot generate full label PDF'
+      return res.status(500).send({
+        error: error?.message || "Cannot generate full label PDF",
       });
-
-
-  } finally {
-
-    if (browser) {
-
-      await browser.close();
-
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
     }
-
-  }
-},
-
-
-
-}
+  },
+};
