@@ -83,8 +83,6 @@ module.exports = {
     }
   },
 
-
-
   deletePalletTemp: async (req, res) => {
     try {
       const { palletTempId } = req.body;
@@ -3738,6 +3736,1207 @@ module.exports = {
       if (browser) {
         await browser.close();
       }
+    }
+  },
+
+  savePallet: async (req, res) => {
+    try {
+      const { userId, palletTempId } = req.body;
+
+      // =====================================================
+      // CONFIG
+      // =====================================================
+
+      const CHUNK_SIZE = 500;
+
+      // =====================================================
+      // VALIDATE REQUIRED
+      // =====================================================
+
+      if (userId == null || palletTempId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const userIdInt = Number(userId);
+
+      const palletTempIdInt = Number(palletTempId);
+
+      if (!Number.isInteger(userIdInt) || userIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_userId",
+        });
+      }
+
+      if (!Number.isInteger(palletTempIdInt) || palletTempIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_palletTempId",
+        });
+      }
+
+      // =====================================================
+      // CHECK PALLET TEMP
+      // =====================================================
+
+      const checkPalletTemp = await prisma.palletTemp.findFirst({
+        where: {
+          id: palletTempIdInt,
+
+          status: "use",
+        },
+      });
+
+      if (!checkPalletTemp) {
+        return res.status(404).send({
+          message: "pallet_temp_not_found",
+        });
+      }
+
+      // =====================================================
+      // TRANSACTION
+      //
+      // Copy จริงทั้งหมดสำเร็จ
+      // ถึงจะ Delete Temp
+      //
+      // ถ้าพังตรงไหน
+      // Rollback ทั้งหมด
+      // =====================================================
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+          // #################################################
+          //
+          // PHASE 1
+          // TEMP -> REAL
+          //
+          // #################################################
+
+          // =================================================
+          // 1. GET PALLET TEMP
+          // =================================================
+
+          const palletTemp = await tx.palletTemp.findUnique({
+            where: {
+              id: palletTempIdInt,
+            },
+          });
+
+          if (!palletTemp) {
+            throw new Error("pallet_temp_not_found");
+          }
+
+          // =================================================
+          // 2. GENERATE PALLET NO
+          // =================================================
+
+          const thailandNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+          const year = thailandNow.getUTCFullYear();
+          const month = thailandNow.getUTCMonth() + 1;
+          const day = thailandNow.getUTCDate();
+
+          // -------------------------------------------------
+          // YEAR
+          // 2026 -> 26
+          // -------------------------------------------------
+          const yearCode = String(year).slice(-2);
+          // -------------------------------------------------
+          // MONTH
+          // -------------------------------------------------
+
+          let monthCode = "";
+
+          if (month === 10) {
+            monthCode = "X";
+          } else if (month === 11) {
+            monthCode = "Y";
+          } else if (month === 12) {
+            monthCode = "Z";
+          } else {
+            monthCode = String(month);
+          }
+
+          // -------------------------------------------------
+          // DAY
+          // 1 -> 01
+          // -------------------------------------------------
+          const dayCode = String(day).padStart(2, "0");
+          // -------------------------------------------------
+          // PREFIX
+          //
+          // เช่น
+          // 26 + 8 + 01
+          // = 26801
+          // -------------------------------------------------
+
+          const palletNoPrefix = `${yearCode}${monthCode}${dayCode}`;
+
+          // =================================================
+          // FIND PALLET ล่าสุดของวันนี้
+          // =================================================
+
+          const lastPallet = await tx.pallet.findFirst({
+            where: {
+              palletNoId: {
+                startsWith: palletNoPrefix,
+              },
+            },
+
+            orderBy: {
+              palletNoId: "desc",
+            },
+
+            select: {
+              palletNoId: true,
+            },
+          });
+
+          // =================================================
+          // RUNNING NUMBER
+          // =================================================
+
+          let nextRunning = 1;
+
+          if (lastPallet?.palletNoId) {
+            const lastRunningText = lastPallet.palletNoId.slice(-3);
+
+            const lastRunning = Number(lastRunningText);
+
+            if (Number.isInteger(lastRunning) && lastRunning > 0) {
+              nextRunning = lastRunning + 1;
+            }
+          }
+
+          // -------------------------------------------------
+          // Limit 001 - 999
+          // -------------------------------------------------
+
+          if (nextRunning > 999) {
+            throw new Error("pallet_daily_running_over_999");
+          }
+
+          const runningCode = String(nextRunning).padStart(3, "0");
+
+          const palletNoId = `${palletNoPrefix}${runningCode}`;
+
+          // =================================================
+          // 3. CREATE PALLET REAL
+          // =================================================
+
+          const newPallet = await tx.pallet.create({
+            data: {
+              palletNoId: palletNoId,
+
+              date: palletTemp.date,
+
+              shift: palletTemp.shift,
+
+              mapAreaRackId: palletTemp.mapAreaRackId,
+
+              labelType: palletTemp.labelType,
+
+              // User ที่กด Save Pallet
+              userId: userIdInt,
+            },
+          });
+
+          // =================================================
+          // SUMMARY
+          // =================================================
+
+          let createdHeaderCount = 0;
+
+          let createdBoxCount = 0;
+
+          let createdFractionMapCount = 0;
+
+          const allHeaderTempIds = [];
+
+          // =================================================
+          // 4. HEADER TEMP
+          //
+          // อ่านทีละ 500
+          // =================================================
+
+          let lastHeaderTempId = 0;
+
+          while (true) {
+            // ===============================================
+            // HEADER CHUNK
+            // ===============================================
+
+            const headerTempChunk = await tx.headerIssueTemp.findMany({
+              where: {
+                palletTempId: palletTempIdInt,
+
+                id: {
+                  gt: lastHeaderTempId,
+                },
+              },
+
+              orderBy: {
+                id: "asc",
+              },
+
+              take: CHUNK_SIZE,
+            });
+
+            // ===============================================
+            // หมดแล้ว
+            // ===============================================
+
+            if (headerTempChunk.length === 0) {
+              break;
+            }
+
+            // ===============================================
+            // PROCESS HEADER ทีละตัว
+            // ===============================================
+
+            for (const headerTemp of headerTempChunk) {
+              const headerTempId = Number(headerTemp.id);
+
+              allHeaderTempIds.push(headerTempId);
+
+              // =============================================
+              // 4.1 GET FRACTION QTY
+              //
+              // จาก HeaderIssueTempFraction
+              //
+              // ถ้ามีหลาย record
+              // SUM qtyBox
+              // =============================================
+
+              const fractionAggregate =
+                await tx.headerIssueTempFraction.aggregate({
+                  where: {
+                    headerId: headerTempId,
+                  },
+
+                  _sum: {
+                    qtyBox: true,
+                  },
+                });
+
+              const fractionQty = Number(fractionAggregate?._sum?.qtyBox || 0);
+
+              // =============================================
+              // 4.2 CREATE HEADER ISSUE REAL
+              // =============================================
+
+              const newHeader = await tx.headerIssue.create({
+                data: {
+                  // Pallet จริง
+                  palletId: newPallet.id,
+
+                  itemNo: headerTemp.itemNo,
+
+                  itemName: headerTemp.itemName,
+
+                  normalQty: Number(headerTemp.normalQty || 0),
+
+                  fractionQty: fractionQty,
+
+                  groupId: headerTemp.groupId,
+
+                  controlLot: String(headerTemp.controlLot || "").trim(),
+
+                  moveMentThreeMonth: headerTemp.moveMentThreeMonth,
+
+                  // เก็บ User ของ Header เดิม
+                  userId: headerTemp.userId,
+
+                  status: headerTemp.status || "use",
+                },
+              });
+
+              createdHeaderCount++;
+
+              // =============================================
+              // 4.3 BOX ISSUE TEMP
+              //
+              // อ่านทีละ 500 ต่อ Header
+              // =============================================
+
+              let lastBoxTempId = 0;
+
+              while (true) {
+                // -------------------------------------------
+                // BOX CHUNK
+                // -------------------------------------------
+
+                const boxTempChunk = await tx.boxIssueTemp.findMany({
+                  where: {
+                    headerId: headerTempId,
+
+                    id: {
+                      gt: lastBoxTempId,
+                    },
+                  },
+
+                  orderBy: {
+                    id: "asc",
+                  },
+
+                  take: CHUNK_SIZE,
+                });
+
+                if (boxTempChunk.length === 0) {
+                  break;
+                }
+
+                // ===========================================
+                // GET BOX TEMP IDs ใน CHUNK นี้
+                // ===========================================
+
+                const boxTempIds = boxTempChunk.map((box) => Number(box.id));
+
+                // ===========================================
+                // หา Fraction Map ของ Box Chunk นี้ทีเดียว
+                //
+                // ไม่ยิง findFirst ทีละ Box
+                // ===========================================
+
+                const tempFractionMaps =
+                  await tx.mapHeaderIssueTempFraction.findMany({
+                    where: {
+                      headerId: headerTempId,
+
+                      boxId: {
+                        in: boxTempIds,
+                      },
+                    },
+
+                    select: {
+                      id: true,
+
+                      boxId: true,
+
+                      status: true,
+                    },
+                  });
+
+                // ===========================================
+                // ทำ Map เพื่อ check เร็ว
+                //
+                // key = BoxIssueTemp.id
+                // ===========================================
+
+                const fractionMapByBoxId = new Map();
+
+                for (const fractionMap of tempFractionMaps) {
+                  const boxId = Number(fractionMap.boxId);
+
+                  // Box 1 ตัว
+                  // ใช้ map ตัวแรก
+                  if (!fractionMapByBoxId.has(boxId)) {
+                    fractionMapByBoxId.set(boxId, fractionMap);
+                  }
+                }
+
+                // ===========================================
+                // LOOP BOX TEMP
+                // ===========================================
+
+                for (const boxTemp of boxTempChunk) {
+                  const boxTempId = Number(boxTemp.id);
+
+                  // -----------------------------------------
+                  // CREATE BOX REAL
+                  // -----------------------------------------
+
+                  const newBox = await tx.box.create({
+                    data: {
+                      // Header จริงตัวใหม่
+                      headerId: newHeader.id,
+
+                      headerClosedId: null,
+
+                      itemNo: boxTemp.itemNo,
+
+                      itemName: boxTemp.itemName,
+
+                      wosNo: boxTemp.wosNo,
+
+                      dwg: boxTemp.dwg,
+
+                      dieNo: boxTemp.dieNo,
+
+                      lotNo: boxTemp.lotNo,
+
+                      qty: boxTemp.qty,
+
+                      status: boxTemp.status || "use",
+                    },
+                  });
+
+                  createdBoxCount++;
+
+                  // =========================================
+                  // CHECK BOX เศษ
+                  // =========================================
+
+                  const tempFractionMap = fractionMapByBoxId.get(boxTempId);
+
+                  if (tempFractionMap) {
+                    // ---------------------------------------
+                    // CREATE REAL FRACTION MAP
+                    //
+                    // headerId = HeaderIssue.id ใหม่
+                    // boxId    = Box.id ใหม่
+                    // ---------------------------------------
+
+                    await tx.mapHeaderIssueFraction.create({
+                      data: {
+                        headerId: newHeader.id,
+
+                        boxId: newBox.id,
+
+                        status: tempFractionMap.status || "use",
+                      },
+                    });
+
+                    createdFractionMapCount++;
+                  }
+                }
+
+                // ===========================================
+                // NEXT BOX CHUNK
+                // ===========================================
+
+                lastBoxTempId = Number(
+                  boxTempChunk[boxTempChunk.length - 1].id
+                );
+              }
+            }
+
+            // ===============================================
+            // NEXT HEADER CHUNK
+            // ===============================================
+
+            lastHeaderTempId = Number(
+              headerTempChunk[headerTempChunk.length - 1].id
+            );
+          }
+
+          // #################################################
+          //
+          // PHASE 2
+          // DELETE TEMP
+          //
+          // Child -> Parent
+          //
+          // #################################################
+
+          let deletedTempMapCount = 0;
+
+          let deletedTempFractionCount = 0;
+
+          let deletedTempBoxCount = 0;
+
+          let deletedTempHeaderCount = 0;
+
+          // =================================================
+          // 5. DELETE CHILD TABLE
+          //
+          // Header IDs ทีละ 500
+          // =================================================
+
+          for (let i = 0; i < allHeaderTempIds.length; i += CHUNK_SIZE) {
+            const headerIdChunk = allHeaderTempIds.slice(i, i + CHUNK_SIZE);
+
+            // ===============================================
+            // 5.1 DELETE
+            // MapHeaderIssueTempFraction
+            // ===============================================
+
+            const deletedMaps = await tx.mapHeaderIssueTempFraction.deleteMany({
+              where: {
+                headerId: {
+                  in: headerIdChunk,
+                },
+              },
+            });
+
+            deletedTempMapCount += deletedMaps.count;
+
+            // ===============================================
+            // 5.2 DELETE
+            // HeaderIssueTempFraction
+            // ===============================================
+
+            const deletedFractions =
+              await tx.headerIssueTempFraction.deleteMany({
+                where: {
+                  headerId: {
+                    in: headerIdChunk,
+                  },
+                },
+              });
+
+            deletedTempFractionCount += deletedFractions.count;
+
+            // ===============================================
+            // 5.3 DELETE
+            // BoxIssueTemp
+            // ===============================================
+
+            const deletedBoxes = await tx.boxIssueTemp.deleteMany({
+              where: {
+                headerId: {
+                  in: headerIdChunk,
+                },
+              },
+            });
+
+            deletedTempBoxCount += deletedBoxes.count;
+
+            // ===============================================
+            // 5.4 DELETE
+            // HeaderIssueTemp
+            // ===============================================
+
+            const deletedHeaders = await tx.headerIssueTemp.deleteMany({
+              where: {
+                id: {
+                  in: headerIdChunk,
+                },
+
+                palletTempId: palletTempIdInt,
+              },
+            });
+
+            deletedTempHeaderCount += deletedHeaders.count;
+          }
+
+          // =================================================
+          // 5.5 DELETE PALLET TEMP
+          // =================================================
+
+          const deletedPalletTemp = await tx.palletTemp.delete({
+            where: {
+              id: palletTempIdInt,
+            },
+          });
+
+          // =================================================
+          // RESULT
+          // =================================================
+
+          return {
+            // -----------------------------------------------
+            // REAL
+            // -----------------------------------------------
+
+            palletTempId: palletTempIdInt,
+
+            palletId: newPallet.id,
+
+            palletNoId: newPallet.palletNoId,
+
+            date: newPallet.date,
+
+            shift: newPallet.shift,
+
+            labelType: newPallet.labelType,
+
+            // -----------------------------------------------
+            // CREATE COUNT
+            // -----------------------------------------------
+
+            createdHeaderCount: createdHeaderCount,
+
+            createdBoxCount: createdBoxCount,
+
+            createdFractionMapCount: createdFractionMapCount,
+
+            // -----------------------------------------------
+            // DELETE TEMP COUNT
+            // -----------------------------------------------
+
+            deletedTempMapCount: deletedTempMapCount,
+
+            deletedTempFractionCount: deletedTempFractionCount,
+
+            deletedTempBoxCount: deletedTempBoxCount,
+
+            deletedTempHeaderCount: deletedTempHeaderCount,
+
+            deletedPalletTempId: deletedPalletTemp.id,
+          };
+        },
+
+        // ===================================================
+        // SQL SERVER
+        //
+        // Serializable ช่วยลดปัญหา Running No ชนกัน
+        // ===================================================
+
+        {
+          isolationLevel: "Serializable",
+
+          maxWait: 10000,
+
+          timeout: 120000,
+        }
+      );
+
+      // =====================================================
+      // SUCCESS
+      // =====================================================
+
+      return res.send({
+        message: "save_pallet_success",
+
+        data: result,
+      });
+    } catch (e) {
+      console.error("SAVE PALLET ERROR:", e);
+
+      // =====================================================
+      // KNOWN ERROR
+      // =====================================================
+
+      if (e.message === "pallet_temp_not_found") {
+        return res.status(404).send({
+          message: "pallet_temp_not_found",
+        });
+      }
+
+      if (e.message === "pallet_daily_running_over_999") {
+        return res.status(400).send({
+          message: "pallet_daily_running_over_999",
+        });
+      }
+
+      // =====================================================
+      // PRISMA UNIQUE
+      // palletNoId ซ้ำ
+      // =====================================================
+
+      if (e.code === "P2002") {
+        return res.status(409).send({
+          message: "pallet_no_already_exists",
+        });
+      }
+
+      // =====================================================
+      // OTHER ERROR
+      // =====================================================
+
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  listPallet: async (req, res) => {
+    try {
+      // =====================================================
+      // CONFIG
+      // =====================================================
+
+      const CHUNK_SIZE = 500;
+
+      // =====================================================
+      // HELPER
+      // แบ่ง Array ทีละ 500
+      // =====================================================
+
+      const chunkArray = (array, size = CHUNK_SIZE) => {
+        const result = [];
+
+        for (let i = 0; i < array.length; i += size) {
+          result.push(array.slice(i, i + size));
+        }
+
+        return result;
+      };
+
+      // =====================================================
+      // 1. FETCH PALLET ALL
+      // ใช้ Cursor ID ทีละ 500
+      // =====================================================
+
+      const pallets = [];
+
+      let lastPalletId = 0;
+
+      while (true) {
+        const rows = await prisma.pallet.findMany({
+          where: {
+            id: {
+              gt: lastPalletId,
+            },
+          },
+
+          orderBy: {
+            id: "asc",
+          },
+
+          take: CHUNK_SIZE,
+        });
+
+        if (rows.length === 0) {
+          break;
+        }
+
+        pallets.push(...rows);
+
+        lastPalletId = Number(rows[rows.length - 1].id);
+      }
+
+      // =====================================================
+      // ไม่มี PALLET
+      // =====================================================
+
+      if (pallets.length === 0) {
+        return res.send({
+          message: "fetch_pallet_success",
+
+          summary: {
+            totalPallet: 0,
+
+            totalHeader: 0,
+
+            totalBox: 0,
+
+            normalBox: 0,
+
+            fractionBox: 0,
+
+            totalQty: 0,
+          },
+
+          results: [],
+        });
+      }
+
+      // =====================================================
+      // 2. FETCH HEADER ISSUE
+      //
+      // แบ่ง palletId ทีละ 500
+      // และในแต่ละชุดดึง Header ทีละ 500
+      // =====================================================
+
+      const palletIds = pallets.map((row) => Number(row.id));
+
+      const headers = [];
+
+      const palletIdChunks = chunkArray(palletIds);
+
+      for (const palletIdChunk of palletIdChunks) {
+        let lastHeaderId = 0;
+
+        while (true) {
+          const rows = await prisma.headerIssue.findMany({
+            where: {
+              palletId: {
+                in: palletIdChunk,
+              },
+
+              id: {
+                gt: lastHeaderId,
+              },
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            take: CHUNK_SIZE,
+          });
+
+          if (rows.length === 0) {
+            break;
+          }
+
+          headers.push(...rows);
+
+          lastHeaderId = Number(rows[rows.length - 1].id);
+        }
+      }
+
+      // =====================================================
+      // 3. FETCH BOX
+      // Header ID ทีละ 500
+      // Box result ทีละ 500
+      // =====================================================
+
+      const boxes = [];
+
+      const headerIds = headers.map((row) => Number(row.id));
+
+      const headerIdChunks = chunkArray(headerIds);
+
+      for (const headerIdChunk of headerIdChunks) {
+        let lastBoxId = 0;
+
+        while (true) {
+          const rows = await prisma.box.findMany({
+            where: {
+              headerId: {
+                in: headerIdChunk,
+              },
+
+              id: {
+                gt: lastBoxId,
+              },
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            take: CHUNK_SIZE,
+          });
+
+          if (rows.length === 0) {
+            break;
+          }
+
+          boxes.push(...rows);
+
+          lastBoxId = Number(rows[rows.length - 1].id);
+        }
+      }
+
+      // =====================================================
+      // 4. FETCH MAP FRACTION
+      //
+      // ใช้ Box ID
+      // เพื่อเช็คว่า Box ไหนเป็น Box เศษ
+      // =====================================================
+
+      const fractionMaps = [];
+
+      const boxIds = boxes.map((row) => Number(row.id));
+
+      const boxIdChunks = chunkArray(boxIds);
+
+      for (const boxIdChunk of boxIdChunks) {
+        let lastMapId = 0;
+
+        while (true) {
+          const rows = await prisma.mapHeaderIssueFraction.findMany({
+            where: {
+              boxId: {
+                in: boxIdChunk,
+              },
+
+              id: {
+                gt: lastMapId,
+              },
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            take: CHUNK_SIZE,
+          });
+
+          if (rows.length === 0) {
+            break;
+          }
+
+          fractionMaps.push(...rows);
+
+          lastMapId = Number(rows[rows.length - 1].id);
+        }
+      }
+
+      // =====================================================
+      // 5. FRACTION BOX SET
+      //
+      // Set ทำให้ check เร็วกว่า find() ทีละ Box
+      // =====================================================
+
+      const fractionBoxIdSet = new Set(
+        fractionMaps.map((row) => Number(row.boxId))
+      );
+
+      // =====================================================
+      // 6. GROUP BOX BY HEADER
+      // =====================================================
+
+      const boxByHeaderId = new Map();
+
+      for (const box of boxes) {
+        const headerId = Number(box.headerId);
+
+        if (!boxByHeaderId.has(headerId)) {
+          boxByHeaderId.set(headerId, []);
+        }
+
+        const isFraction = fractionBoxIdSet.has(Number(box.id));
+
+        boxByHeaderId.get(headerId).push({
+          id: Number(box.id),
+
+          headerId: headerId,
+
+          headerClosedId:
+            box.headerClosedId == null ? null : Number(box.headerClosedId),
+
+          itemNo: box.itemNo,
+
+          itemName: box.itemName,
+
+          wosNo: box.wosNo,
+
+          dwg: box.dwg,
+
+          dieNo: box.dieNo,
+
+          lotNo: box.lotNo,
+
+          qty: Number(box.qty || 0),
+
+          timeStmp: box.timeStmp,
+
+          status: box.status,
+
+          // ===============================================
+          // BOX FRACTION FLAG
+          // ===============================================
+
+          isFraction: isFraction,
+
+          boxType: isFraction ? "FRACTION" : "NORMAL",
+        });
+      }
+
+      // =====================================================
+      // 7. SORT BOX
+      //
+      // NORMAL ก่อน
+      // FRACTION ไว้ล่างสุด
+      // =====================================================
+
+      for (const [headerId, headerBoxes] of boxByHeaderId.entries()) {
+        headerBoxes.sort((a, b) => {
+          // NORMAL = 0
+          // FRACTION = 1
+
+          const typeA = a.isFraction ? 1 : 0;
+
+          const typeB = b.isFraction ? 1 : 0;
+
+          if (typeA !== typeB) {
+            return typeA - typeB;
+          }
+
+          return Number(a.id) - Number(b.id);
+        });
+
+        boxByHeaderId.set(headerId, headerBoxes);
+      }
+
+      // =====================================================
+      // 8. GROUP HEADER BY PALLET
+      // =====================================================
+
+      const headerByPalletId = new Map();
+
+      for (const header of headers) {
+        const palletId = Number(header.palletId);
+
+        const headerBoxes = boxByHeaderId.get(Number(header.id)) || [];
+
+        const normalBoxes = headerBoxes.filter((box) => !box.isFraction);
+
+        const fractionBoxes = headerBoxes.filter((box) => box.isFraction);
+
+        const totalQty = headerBoxes.reduce(
+          (sum, box) => sum + Number(box.qty || 0),
+          0
+        );
+
+        const headerData = {
+          id: Number(header.id),
+
+          palletId: palletId,
+
+          itemNo: header.itemNo,
+
+          itemName: header.itemName,
+
+          normalQty: Number(header.normalQty || 0),
+
+          fractionQty: Number(header.fractionQty || 0),
+
+          groupId: Number(header.groupId),
+
+          controlLot: header.controlLot,
+
+          moveMentThreeMonth: header.moveMentThreeMonth,
+
+          userId: Number(header.userId),
+
+          timeStmp: header.timeStmp,
+
+          status: header.status,
+
+          // ===============================================
+          // SUMMARY HEADER
+          // ===============================================
+
+          totalBox: headerBoxes.length,
+
+          normalBox: normalBoxes.length,
+
+          fractionBox: fractionBoxes.length,
+
+          totalQty: totalQty,
+
+          // ===============================================
+          // BOX
+          // ===============================================
+
+          boxes: headerBoxes,
+        };
+
+        if (!headerByPalletId.has(palletId)) {
+          headerByPalletId.set(palletId, []);
+        }
+
+        headerByPalletId.get(palletId).push(headerData);
+      }
+
+      // =====================================================
+      // 9. BUILD FINAL PALLET RESULT
+      // =====================================================
+
+      const results = pallets.map((pallet) => {
+        const palletHeaders = headerByPalletId.get(Number(pallet.id)) || [];
+
+        // Header ID asc
+        palletHeaders.sort((a, b) => Number(a.id) - Number(b.id));
+
+        const totalBox = palletHeaders.reduce(
+          (sum, header) => sum + Number(header.totalBox || 0),
+          0
+        );
+
+        const normalBox = palletHeaders.reduce(
+          (sum, header) => sum + Number(header.normalBox || 0),
+          0
+        );
+
+        const fractionBox = palletHeaders.reduce(
+          (sum, header) => sum + Number(header.fractionBox || 0),
+          0
+        );
+
+        const totalQty = palletHeaders.reduce(
+          (sum, header) => sum + Number(header.totalQty || 0),
+          0
+        );
+
+        return {
+          id: Number(pallet.id),
+
+          palletNoId: pallet.palletNoId,
+
+          date: pallet.date,
+
+          shift: pallet.shift,
+
+          mapAreaRackId: Number(pallet.mapAreaRackId),
+
+          labelType: pallet.labelType,
+
+          userId: Number(pallet.userId),
+
+          timeStmp: pallet.timeStmp,
+
+          // =============================================
+          // PALLET SUMMARY
+          // =============================================
+
+          totalHeader: palletHeaders.length,
+
+          totalBox: totalBox,
+
+          normalBox: normalBox,
+
+          fractionBox: fractionBox,
+
+          totalQty: totalQty,
+
+          // =============================================
+          // HEADER
+          // =============================================
+
+          headers: palletHeaders,
+        };
+      });
+
+      // =====================================================
+      // NEWEST PALLET FIRST
+      // =====================================================
+
+      results.sort((a, b) => Number(b.id) - Number(a.id));
+
+      // =====================================================
+      // GLOBAL SUMMARY
+      // =====================================================
+
+      const totalHeader = results.reduce(
+        (sum, pallet) => sum + pallet.totalHeader,
+        0
+      );
+
+      const totalBox = results.reduce(
+        (sum, pallet) => sum + pallet.totalBox,
+        0
+      );
+
+      const normalBox = results.reduce(
+        (sum, pallet) => sum + pallet.normalBox,
+        0
+      );
+
+      const fractionBox = results.reduce(
+        (sum, pallet) => sum + pallet.fractionBox,
+        0
+      );
+
+      const totalQty = results.reduce(
+        (sum, pallet) => sum + pallet.totalQty,
+        0
+      );
+
+      // =====================================================
+      // SUCCESS
+      // =====================================================
+
+      return res.send({
+        message: "fetch_pallet_success",
+
+        summary: {
+          totalPallet: results.length,
+
+          totalHeader: totalHeader,
+
+          totalBox: totalBox,
+
+          normalBox: normalBox,
+
+          fractionBox: fractionBox,
+
+          totalQty: totalQty,
+        },
+
+        results: results,
+      });
+    } catch (e) {
+      console.error("LIST PALLET ERROR:", e);
+
+      return res.status(500).send({
+        error: e.message,
+      });
     }
   },
 };

@@ -111,7 +111,7 @@ model PalletTemp {
 
 model Pallet {
   id Int @id() @default(autoincrement())
-  PalletNoId Int
+  palletNoId String
   date DateTime 
   shift String 
   mapAreaRackId Int
@@ -148,6 +148,7 @@ model HeaderIssueTemp {
 
 model HeaderIssue {
   id Int @id() @default(autoincrement())
+  labelNo String
   palletId Int
   itemNo String
   itemName String
@@ -160,7 +161,7 @@ model HeaderIssue {
   timeStmp DateTime @default(now())
   status String @default("use")
   MapHeaderIssueFraction MapHeaderIssueFraction[]
-  Pallet Pallet @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   Box Box[]
   HeaderClosedTemp HeaderClosedTemp[]
 }
@@ -240,8 +241,8 @@ model MapHeaderIssueFraction {
 
 model Box {
   id Int @id() @default(autoincrement())
-  headId Int
-  headClosedId Int?
+  headerId Int
+  headerClosedId Int?
   itemNo String
   itemName String
   wosNo String
@@ -251,7 +252,7 @@ model Box {
   qty Int
   timeStmp DateTime @default(now())
   status String @default("use") 
-  HeaderIssue HeaderIssue @relation(fields: [headId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction )
   MapHeaderIssueFraction MapHeaderIssueFraction[]
   HeaderClosedTemp HeaderClosedTemp[]
 
