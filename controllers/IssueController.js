@@ -3796,8 +3796,8 @@ module.exports = {
       // =====================================================
       // TRANSACTION
       //
-      // Copy จริงทั้งหมดสำเร็จ
-      // ถึงจะ Delete Temp
+      // TEMP -> REAL
+      // แล้วค่อย DELETE TEMP
       //
       // ถ้าพังตรงไหน
       // Rollback ทั้งหมด
@@ -3827,21 +3827,32 @@ module.exports = {
           }
 
           // =================================================
-          // 2. GENERATE PALLET NO
+          // 2. CURRENT THAILAND DATE
           // =================================================
 
           const thailandNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+
           const year = thailandNow.getUTCFullYear();
+
           const month = thailandNow.getUTCMonth() + 1;
+
           const day = thailandNow.getUTCDate();
 
           // -------------------------------------------------
           // YEAR
+          //
           // 2026 -> 26
           // -------------------------------------------------
+
           const yearCode = String(year).slice(-2);
+
           // -------------------------------------------------
           // MONTH
+          //
+          // 1 - 9 = 1 - 9
+          // 10    = X
+          // 11    = Y
+          // 12    = Z
           // -------------------------------------------------
 
           let monthCode = "";
@@ -3858,27 +3869,37 @@ module.exports = {
 
           // -------------------------------------------------
           // DAY
+          //
           // 1 -> 01
           // -------------------------------------------------
+
           const dayCode = String(day).padStart(2, "0");
+
           // -------------------------------------------------
-          // PREFIX
+          // DAILY PREFIX
           //
-          // เช่น
+          // 2026-08-01
+          //
           // 26 + 8 + 01
           // = 26801
           // -------------------------------------------------
 
-          const palletNoPrefix = `${yearCode}${monthCode}${dayCode}`;
+          const dailyPrefix = `${yearCode}${monthCode}${dayCode}`;
+
+          // #################################################
+          //
+          // PALLET NO
+          //
+          // #################################################
 
           // =================================================
-          // FIND PALLET ล่าสุดของวันนี้
+          // 3. FIND LAST PALLET NO OF TODAY
           // =================================================
 
           const lastPallet = await tx.pallet.findFirst({
             where: {
               palletNoId: {
-                startsWith: palletNoPrefix,
+                startsWith: dailyPrefix,
               },
             },
 
@@ -3892,10 +3913,10 @@ module.exports = {
           });
 
           // =================================================
-          // RUNNING NUMBER
+          // 4. PALLET RUNNING
           // =================================================
 
-          let nextRunning = 1;
+          let nextPalletRunning = 1;
 
           if (lastPallet?.palletNoId) {
             const lastRunningText = lastPallet.palletNoId.slice(-3);
@@ -3903,24 +3924,24 @@ module.exports = {
             const lastRunning = Number(lastRunningText);
 
             if (Number.isInteger(lastRunning) && lastRunning > 0) {
-              nextRunning = lastRunning + 1;
+              nextPalletRunning = lastRunning + 1;
             }
           }
 
           // -------------------------------------------------
-          // Limit 001 - 999
+          // LIMIT 001 - 999
           // -------------------------------------------------
 
-          if (nextRunning > 999) {
+          if (nextPalletRunning > 999) {
             throw new Error("pallet_daily_running_over_999");
           }
 
-          const runningCode = String(nextRunning).padStart(3, "0");
+          const palletRunningCode = String(nextPalletRunning).padStart(3, "0");
 
-          const palletNoId = `${palletNoPrefix}${runningCode}`;
+          const palletNoId = `${dailyPrefix}${palletRunningCode}`;
 
           // =================================================
-          // 3. CREATE PALLET REAL
+          // 5. CREATE PALLET REAL
           // =================================================
 
           const newPallet = await tx.pallet.create({
@@ -3935,10 +3956,55 @@ module.exports = {
 
               labelType: palletTemp.labelType,
 
-              // User ที่กด Save Pallet
+              // User ที่กด Issue Pallet
               userId: userIdInt,
             },
           });
+
+          // #################################################
+          //
+          // PREPARE HEADER LABEL NO
+          //
+          // #################################################
+
+          // =================================================
+          // 6. FIND LAST HEADER LABEL NO OF TODAY
+          //
+          // Query แค่ครั้งเดียว
+          // หลังจากนั้น +1 ใน Loop
+          // =================================================
+
+          const lastHeaderLabel = await tx.headerIssue.findFirst({
+            where: {
+              labelNo: {
+                startsWith: dailyPrefix,
+              },
+            },
+
+            orderBy: {
+              labelNo: "desc",
+            },
+
+            select: {
+              labelNo: true,
+            },
+          });
+
+          // =================================================
+          // 7. HEADER LABEL RUNNING
+          // =================================================
+
+          let nextLabelRunning = 1;
+
+          if (lastHeaderLabel?.labelNo) {
+            const lastLabelRunningText = lastHeaderLabel.labelNo.slice(-3);
+
+            const lastLabelRunning = Number(lastLabelRunningText);
+
+            if (Number.isInteger(lastLabelRunning) && lastLabelRunning > 0) {
+              nextLabelRunning = lastLabelRunning + 1;
+            }
+          }
 
           // =================================================
           // SUMMARY
@@ -3952,8 +4018,11 @@ module.exports = {
 
           const allHeaderTempIds = [];
 
+          // เก็บ Label ที่สร้าง
+          const createdLabelNos = [];
+
           // =================================================
-          // 4. HEADER TEMP
+          // 8. HEADER TEMP
           //
           // อ่านทีละ 500
           // =================================================
@@ -3982,7 +4051,7 @@ module.exports = {
             });
 
             // ===============================================
-            // หมดแล้ว
+            // HEADER หมดแล้ว
             // ===============================================
 
             if (headerTempChunk.length === 0) {
@@ -3999,11 +4068,11 @@ module.exports = {
               allHeaderTempIds.push(headerTempId);
 
               // =============================================
-              // 4.1 GET FRACTION QTY
+              // 8.1 GET FRACTION QTY
               //
               // จาก HeaderIssueTempFraction
               //
-              // ถ้ามีหลาย record
+              // ถ้ามีหลาย Record
               // SUM qtyBox
               // =============================================
 
@@ -4021,13 +4090,41 @@ module.exports = {
               const fractionQty = Number(fractionAggregate?._sum?.qtyBox || 0);
 
               // =============================================
-              // 4.2 CREATE HEADER ISSUE REAL
+              // 8.2 GENERATE LABEL NO
+              // =============================================
+
+              if (nextLabelRunning > 999) {
+                throw new Error("label_daily_running_over_999");
+              }
+
+              const labelRunningCode = String(nextLabelRunning).padStart(
+                3,
+                "0"
+              );
+
+              const labelNo = `${dailyPrefix}${labelRunningCode}`;
+
+              // =============================================
+              // 8.3 CREATE HEADER ISSUE REAL
               // =============================================
 
               const newHeader = await tx.headerIssue.create({
                 data: {
+                  // ---------------------------------------
                   // Pallet จริง
+                  // ---------------------------------------
+
                   palletId: newPallet.id,
+
+                  // ---------------------------------------
+                  // Label No.
+                  //
+                  // เช่น
+                  // 26801001
+                  // 26801002
+                  // ---------------------------------------
+
+                  labelNo: labelNo,
 
                   itemNo: headerTemp.itemNo,
 
@@ -4043,7 +4140,10 @@ module.exports = {
 
                   moveMentThreeMonth: headerTemp.moveMentThreeMonth,
 
+                  // ---------------------------------------
                   // เก็บ User ของ Header เดิม
+                  // ---------------------------------------
+
                   userId: headerTemp.userId,
 
                   status: headerTemp.status || "use",
@@ -4052,8 +4152,18 @@ module.exports = {
 
               createdHeaderCount++;
 
+              createdLabelNos.push(labelNo);
+
               // =============================================
-              // 4.3 BOX ISSUE TEMP
+              // NEXT LABEL RUNNING
+              //
+              // Header ถัดไป +1
+              // =============================================
+
+              nextLabelRunning++;
+
+              // =============================================
+              // 8.4 BOX ISSUE TEMP
               //
               // อ่านทีละ 500 ต่อ Header
               // =============================================
@@ -4086,15 +4196,15 @@ module.exports = {
                 }
 
                 // ===========================================
-                // GET BOX TEMP IDs ใน CHUNK นี้
+                // GET BOX TEMP IDs
                 // ===========================================
 
                 const boxTempIds = boxTempChunk.map((box) => Number(box.id));
 
                 // ===========================================
-                // หา Fraction Map ของ Box Chunk นี้ทีเดียว
+                // GET FRACTION MAP
                 //
-                // ไม่ยิง findFirst ทีละ Box
+                // Query ทั้ง Chunk ครั้งเดียว
                 // ===========================================
 
                 const tempFractionMaps =
@@ -4117,7 +4227,7 @@ module.exports = {
                   });
 
                 // ===========================================
-                // ทำ Map เพื่อ check เร็ว
+                // MAP FRACTION BOX
                 //
                 // key = BoxIssueTemp.id
                 // ===========================================
@@ -4127,8 +4237,6 @@ module.exports = {
                 for (const fractionMap of tempFractionMaps) {
                   const boxId = Number(fractionMap.boxId);
 
-                  // Box 1 ตัว
-                  // ใช้ map ตัวแรก
                   if (!fractionMapByBoxId.has(boxId)) {
                     fractionMapByBoxId.set(boxId, fractionMap);
                   }
@@ -4147,7 +4255,6 @@ module.exports = {
 
                   const newBox = await tx.box.create({
                     data: {
-                      // Header จริงตัวใหม่
                       headerId: newHeader.id,
 
                       headerClosedId: null,
@@ -4173,7 +4280,7 @@ module.exports = {
                   createdBoxCount++;
 
                   // =========================================
-                  // CHECK BOX เศษ
+                  // CHECK BOX FRACTION
                   // =========================================
 
                   const tempFractionMap = fractionMapByBoxId.get(boxTempId);
@@ -4224,7 +4331,7 @@ module.exports = {
           // PHASE 2
           // DELETE TEMP
           //
-          // Child -> Parent
+          // CHILD -> PARENT
           //
           // #################################################
 
@@ -4237,7 +4344,7 @@ module.exports = {
           let deletedTempHeaderCount = 0;
 
           // =================================================
-          // 5. DELETE CHILD TABLE
+          // 9. DELETE TEMP CHILD TABLE
           //
           // Header IDs ทีละ 500
           // =================================================
@@ -4246,7 +4353,7 @@ module.exports = {
             const headerIdChunk = allHeaderTempIds.slice(i, i + CHUNK_SIZE);
 
             // ===============================================
-            // 5.1 DELETE
+            // 9.1 DELETE
             // MapHeaderIssueTempFraction
             // ===============================================
 
@@ -4261,7 +4368,7 @@ module.exports = {
             deletedTempMapCount += deletedMaps.count;
 
             // ===============================================
-            // 5.2 DELETE
+            // 9.2 DELETE
             // HeaderIssueTempFraction
             // ===============================================
 
@@ -4277,7 +4384,7 @@ module.exports = {
             deletedTempFractionCount += deletedFractions.count;
 
             // ===============================================
-            // 5.3 DELETE
+            // 9.3 DELETE
             // BoxIssueTemp
             // ===============================================
 
@@ -4292,7 +4399,7 @@ module.exports = {
             deletedTempBoxCount += deletedBoxes.count;
 
             // ===============================================
-            // 5.4 DELETE
+            // 9.4 DELETE
             // HeaderIssueTemp
             // ===============================================
 
@@ -4310,7 +4417,7 @@ module.exports = {
           }
 
           // =================================================
-          // 5.5 DELETE PALLET TEMP
+          // 9.5 DELETE PALLET TEMP
           // =================================================
 
           const deletedPalletTemp = await tx.palletTemp.delete({
@@ -4325,7 +4432,7 @@ module.exports = {
 
           return {
             // -----------------------------------------------
-            // REAL
+            // REAL PALLET
             // -----------------------------------------------
 
             palletTempId: palletTempIdInt,
@@ -4339,6 +4446,20 @@ module.exports = {
             shift: newPallet.shift,
 
             labelType: newPallet.labelType,
+
+            // -----------------------------------------------
+            // LABEL NO.
+            // -----------------------------------------------
+
+            createdLabelNos: createdLabelNos,
+
+            firstLabelNo:
+              createdLabelNos.length > 0 ? createdLabelNos[0] : null,
+
+            lastLabelNo:
+              createdLabelNos.length > 0
+                ? createdLabelNos[createdLabelNos.length - 1]
+                : null,
 
             // -----------------------------------------------
             // CREATE COUNT
@@ -4369,7 +4490,8 @@ module.exports = {
         // ===================================================
         // SQL SERVER
         //
-        // Serializable ช่วยลดปัญหา Running No ชนกัน
+        // Serializable ช่วยลดโอกาส
+        // Running Number ชนกัน
         // ===================================================
 
         {
@@ -4394,7 +4516,7 @@ module.exports = {
       console.error("SAVE PALLET ERROR:", e);
 
       // =====================================================
-      // KNOWN ERROR
+      // PALLET TEMP NOT FOUND
       // =====================================================
 
       if (e.message === "pallet_temp_not_found") {
@@ -4403,6 +4525,10 @@ module.exports = {
         });
       }
 
+      // =====================================================
+      // PALLET RUNNING > 999
+      // =====================================================
+
       if (e.message === "pallet_daily_running_over_999") {
         return res.status(400).send({
           message: "pallet_daily_running_over_999",
@@ -4410,11 +4536,38 @@ module.exports = {
       }
 
       // =====================================================
+      // LABEL RUNNING > 999
+      // =====================================================
+
+      if (e.message === "label_daily_running_over_999") {
+        return res.status(400).send({
+          message: "label_daily_running_over_999",
+        });
+      }
+
+      // =====================================================
       // PRISMA UNIQUE
-      // palletNoId ซ้ำ
+      //
+      // palletNoId / labelNo ซ้ำ
       // =====================================================
 
       if (e.code === "P2002") {
+        const target = String(e?.meta?.target || "");
+
+        // ---------------------------------------------------
+        // LABEL NO DUPLICATE
+        // ---------------------------------------------------
+
+        if (target.toLowerCase().includes("labelno")) {
+          return res.status(409).send({
+            message: "label_no_already_exists",
+          });
+        }
+
+        // ---------------------------------------------------
+        // PALLET NO DUPLICATE
+        // ---------------------------------------------------
+
         return res.status(409).send({
           message: "pallet_no_already_exists",
         });
