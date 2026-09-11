@@ -3832,11 +3832,6 @@ module.exports = {
 
       // =====================================================
       // SHORT LOT NO
-      //
-      // ใช้ Logic เดิม
-      //
-      // เช่น
-      // X24X24... -> 24X24
       // =====================================================
 
       const getShortLotNo = (lotNo) => {
@@ -3869,13 +3864,6 @@ module.exports = {
 
       // =====================================================
       // QTY MULTIPLY
-      //
-      // [1000,1000,1000,500]
-      //
-      // ->
-      //
-      // 1,000 x 3
-      // 500 x 1
       // =====================================================
 
       const qtyMultiplyList = (qtyList = []) => {
@@ -4032,7 +4020,7 @@ module.exports = {
       }
 
       // =====================================================
-      // REAL PALLET NO.
+      // PALLET NO.
       // =====================================================
 
       const idPallet = String(pallet.palletNoId || "").trim();
@@ -4041,19 +4029,22 @@ module.exports = {
       // LABEL TYPE
       // =====================================================
 
-      const labelType = String(pallet.labelType || "FG").trim() || "FG";
+      const labelType =
+        String(pallet.labelType || "FG")
+          .trim()
+          .toUpperCase() || "FG";
 
       // =====================================================
       // LOCATION
       //
-      // Pallet
-      // -> MapAreaRack
-      // -> Area + Rack
+      // Rack + Area
       //
-      // ตัวอย่าง
-      // Area = H
-      // Rack = 101
-      // Result = H101
+      // ตัวอย่าง:
+      //
+      // rackName = F
+      // areaName = 105
+      //
+      // -> F105
       // =====================================================
 
       const areaName = String(pallet?.MapAreaRack?.Area?.name || "").trim();
@@ -4068,8 +4059,6 @@ module.exports = {
       // #####################################################
       //
       // 2. LOAD HEADER ISSUE ALL
-      //
-      // 1 HEADER = 1 LABEL NO
       //
       // #####################################################
 
@@ -4111,16 +4100,68 @@ module.exports = {
         });
       }
 
-      // =====================================================
-      // USER ของ Header
+      // #####################################################
       //
-      // HeaderIssue ไม่มี Prisma relation User
-      // เลย Fetch จาก userId แยก
-      // =====================================================
+      // 3. LOAD GROUP MASTER
+      //
+      // HeaderIssue มีแค่ groupId
+      // จึง Fetch Group เพื่อดูชื่อ
+      //
+      // General
+      // Stator
+      // Lamination
+      //
+      // #####################################################
+
+      const groupIds = [
+        ...new Set(
+          headers
+            .map((header) => Number(header.groupId))
+            .filter((id) => Number.isInteger(id) && id > 0)
+        ),
+      ];
+
+      const groups = [];
+
+      for (let i = 0; i < groupIds.length; i += CHUNK_SIZE) {
+        const groupIdChunk = groupIds.slice(i, i + CHUNK_SIZE);
+
+        const groupChunk = await prisma.group.findMany({
+          where: {
+            id: {
+              in: groupIdChunk,
+            },
+          },
+
+          select: {
+            id: true,
+
+            name: true,
+          },
+        });
+
+        groups.push(...groupChunk);
+      }
+
+      const groupById = new Map();
+
+      for (const group of groups) {
+        groupById.set(Number(group.id), group);
+      }
+
+      // #####################################################
+      //
+      // 4. USER ของ HEADER
+      //
+      // #####################################################
 
       const headerUserIds = [
-        ...new Set(headers.map((header) => Number(header.userId))),
-      ].filter((id) => Number.isInteger(id) && id > 0);
+        ...new Set(
+          headers
+            .map((header) => Number(header.userId))
+            .filter((id) => Number.isInteger(id) && id > 0)
+        ),
+      ];
 
       const headerUsers = [];
 
@@ -4154,12 +4195,11 @@ module.exports = {
 
       // #####################################################
       //
-      // 3. BUILD LABEL DOCUMENTS
+      // 5. BUILD LABEL DOCUMENTS
       //
       // 1 Header = 1 LabelNo
       //
-      // แต่ถ้า Group Lot > 4
-      // จะได้หลาย Page
+      // > 4 Lot = Next Page
       //
       // #####################################################
 
@@ -4170,13 +4210,54 @@ module.exports = {
 
         const labelNo = String(header.labelNo || "").trim();
 
-        // ===================================================
-        // VALIDATE LABEL
-        // ===================================================
-
         if (!labelNo) {
           continue;
         }
+
+        // ===================================================
+        // HEADER GROUP
+        // ===================================================
+
+        const headerGroup = groupById.get(Number(header.groupId)) || null;
+
+        const groupName = String(headerGroup?.name || "")
+          .trim()
+          .toUpperCase();
+
+        // ===================================================
+        // REAL CONTROL LOT
+        //
+        // HeaderIssue.controlLot
+        // ===================================================
+
+        const realControlLot = String(header.controlLot || "").trim();
+
+        // ===================================================
+        // DETERMINE OQC VALUE
+        //
+        // CASE 1
+        // WIP ทุก Group
+        // -> Location
+        //
+        // CASE 2
+        // FG + Lamination
+        // -> Location
+        //
+        // CASE 3
+        // FG + General / Stator
+        // -> HeaderIssue.controlLot
+        //
+        // FG Group อื่น
+        // -> controlLot ตามปกติ
+        // ===================================================
+
+        const useLocationAsOqc =
+          labelType === "WIP" ||
+          (labelType === "FG" && groupName === "LAMINATION");
+
+        const effectiveOqcLotNo = useLocationAsOqc
+          ? displayLocation
+          : realControlLot;
 
         // ===================================================
         // HEADER USER
@@ -4186,7 +4267,7 @@ module.exports = {
           userById.get(Number(header.userId)) || pallet.User || null;
 
         // ===================================================
-        // 3.1 LOAD BOX REAL
+        // LOAD BOX
         // ===================================================
 
         const boxes = [];
@@ -4221,18 +4302,12 @@ module.exports = {
           lastBoxId = Number(boxChunk[boxChunk.length - 1].id);
         }
 
-        // ===================================================
-        // ไม่มี Box
-        // ===================================================
-
         if (boxes.length === 0) {
           continue;
         }
 
         // ===================================================
-        // 3.2 GET FRACTION BOX
-        //
-        // MapHeaderIssueFraction
+        // FRACTION BOX
         // ===================================================
 
         const fractionBoxIdSet = new Set();
@@ -4264,10 +4339,7 @@ module.exports = {
         }
 
         // ===================================================
-        // 3.3 GROUP BY LOT NO
-        //
-        // ใช้ Short Lot เดิมในการ Group
-        // เหมือน Function Temp
+        // GROUP BY LOT
         // ===================================================
 
         const groupMap = new Map();
@@ -4307,7 +4379,7 @@ module.exports = {
         };
 
         // ===================================================
-        // ADD BOX TO GROUP
+        // ADD BOX
         // ===================================================
 
         for (const box of boxes) {
@@ -4317,7 +4389,7 @@ module.exports = {
         }
 
         // ===================================================
-        // GROUP RESULT
+        // BUILD GROUP ROW
         // ===================================================
 
         let groupedRows = Array.from(groupMap.values()).map((group, index) => {
@@ -4325,13 +4397,15 @@ module.exports = {
 
           const partialQtyItems = qtyMultiplyList(group.partialQtyList);
 
-          const fullTotal = group.fullQtyList.reduce((sum, qty) => {
-            return sum + Number(qty || 0);
-          }, 0);
+          const fullTotal = group.fullQtyList.reduce(
+            (sum, qty) => sum + Number(qty || 0),
+            0
+          );
 
-          const partialTotal = group.partialQtyList.reduce((sum, qty) => {
-            return sum + Number(qty || 0);
-          }, 0);
+          const partialTotal = group.partialQtyList.reduce(
+            (sum, qty) => sum + Number(qty || 0),
+            0
+          );
 
           return {
             no: index + 1,
@@ -4373,7 +4447,7 @@ module.exports = {
         }));
 
         // ===================================================
-        // HEADER MAIN VALUE
+        // HEADER MAIN
         // ===================================================
 
         const firstAnyRow = groupedRows[0] || null;
@@ -4381,8 +4455,6 @@ module.exports = {
         const itemNoForBarcode = firstAnyRow?.itemNo || header.itemNo || "";
 
         const itemName = header.itemName || firstAnyRow?.itemName || "";
-
-        const oqcLotNo = String(header.controlLot || "").trim();
 
         // ===================================================
         // ITEM BARCODE
@@ -4396,9 +4468,6 @@ module.exports = {
 
         // ===================================================
         // PALLET + LABEL QR
-        //
-        // QR =
-        // palletNoId TAB labelNo
         // ===================================================
 
         const idPalletLabelQrText = `${idPallet}\t${labelNo}`;
@@ -4409,14 +4478,27 @@ module.exports = {
         );
 
         // ===================================================
-        // QR PER LOT ROW
+        // QR PER LOT
+        //
+        // IMPORTANT:
+        //
+        // effectiveOqcLotNo
+        //
+        // ถูกใช้ทั้ง
+        // - Stock in
+        // - Issue D/O
+        //
         // ===================================================
 
         const groupedRowsWithQr = [];
 
         for (const row of groupedRows) {
+          // ===============================================
+          // STOCK IN QR
+          // ===============================================
+
           const stockInQrText = buildStockInQrText({
-            oqcLotNo: oqcLotNo,
+            oqcLotNo: effectiveOqcLotNo,
 
             dieNo: row.dieNo || "",
 
@@ -4425,12 +4507,16 @@ module.exports = {
             totalQty: row.totalQty || 0,
           });
 
+          // ===============================================
+          // ISSUE D/O QR
+          // ===============================================
+
           const issueDoQrText = buildIssueDoQrText({
             lotNo: row.lotNo || "",
 
             dieNo: row.dieNo || "",
 
-            oqcLotNo: oqcLotNo,
+            oqcLotNo: effectiveOqcLotNo,
 
             idPallet: idPallet,
           });
@@ -4453,12 +4539,7 @@ module.exports = {
         }
 
         // ===================================================
-        // GRAND TOTAL ของ LABEL นี้
-        //
-        // ไม่ใช่เฉพาะ Page
-        //
-        // ทุก Page ของ Label เดียวกัน
-        // จะแสดง Total เดียวกัน
+        // GRAND TOTAL
         // ===================================================
 
         const grandTotalQty = groupedRowsWithQr.reduce((sum, row) => {
@@ -4467,8 +4548,6 @@ module.exports = {
 
         // ===================================================
         // 4 LOT / PAGE
-        //
-        // LabelNo เดิมทุกหน้า
         // ===================================================
 
         const pageGroups =
@@ -4504,7 +4583,32 @@ module.exports = {
 
             labelNo: labelNo,
 
-            controlLot: oqcLotNo,
+            // ===============================================
+            // GROUP
+            // ===============================================
+
+            groupId: header.groupId,
+
+            groupName: headerGroup?.name || "",
+
+            // ===============================================
+            // OQC
+            //
+            // WIP
+            // -> Location
+            //
+            // FG Lamination
+            // -> Location
+            //
+            // FG General / Stator
+            // -> controlLot
+            // ===============================================
+
+            controlLot: effectiveOqcLotNo,
+
+            realControlLot: realControlLot,
+
+            useLocationAsOqc: useLocationAsOqc,
 
             moveMentThreeMonth: header.moveMentThreeMonth,
 
@@ -4633,16 +4737,12 @@ module.exports = {
             <tr class="data-row">
   
               <td class="row-no">
-  
                 ${escapeHtml(row.no)}
-  
               </td>
   
   
               <td class="lot-cell">
-  
                 ${escapeHtml(row.lotNo)}
-  
               </td>
   
   
