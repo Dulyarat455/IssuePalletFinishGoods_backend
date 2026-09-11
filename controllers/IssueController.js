@@ -3917,17 +3917,21 @@ module.exports = {
       };
 
       // =====================================================
-      // QR
+      // QR CODE
       // =====================================================
 
       const generateQrDataUrl = async (text, width = 150) => {
-        return await QRCode.toDataURL(String(text ?? ""), {
-          errorCorrectionLevel: "M",
+        return await QRCode.toDataURL(
+          String(text ?? ""),
 
-          margin: 1,
+          {
+            errorCorrectionLevel: "M",
 
-          width: width,
-        });
+            margin: 1,
+
+            width: width,
+          }
+        );
       };
 
       // =====================================================
@@ -3951,7 +3955,7 @@ module.exports = {
       };
 
       // =====================================================
-      // QR STOCK IN
+      // STOCK IN QR TEXT
       // =====================================================
 
       const buildStockInQrText = ({ oqcLotNo, dieNo, lotNo, totalQty }) => {
@@ -3969,7 +3973,7 @@ module.exports = {
       };
 
       // =====================================================
-      // QR ISSUE D/O
+      // ISSUE D/O QR TEXT
       // =====================================================
 
       const buildIssueDoQrText = ({ lotNo, dieNo, oqcLotNo, idPallet }) => {
@@ -3991,7 +3995,7 @@ module.exports = {
 
       // #####################################################
       //
-      // 1. LOAD PALLET REAL
+      // 1. LOAD PALLET
       //
       // #####################################################
 
@@ -4020,7 +4024,7 @@ module.exports = {
       }
 
       // =====================================================
-      // PALLET NO.
+      // PALLET NO
       // =====================================================
 
       const idPallet = String(pallet.palletNoId || "").trim();
@@ -4039,12 +4043,9 @@ module.exports = {
       //
       // Rack + Area
       //
-      // ตัวอย่าง:
-      //
-      // rackName = F
-      // areaName = 105
-      //
-      // -> F105
+      // F + 105
+      // =
+      // F105
       // =====================================================
 
       const areaName = String(pallet?.MapAreaRack?.Area?.name || "").trim();
@@ -4058,7 +4059,7 @@ module.exports = {
 
       // #####################################################
       //
-      // 2. LOAD HEADER ISSUE ALL
+      // 2. LOAD ALL HEADER
       //
       // #####################################################
 
@@ -4104,13 +4105,6 @@ module.exports = {
       //
       // 3. LOAD GROUP MASTER
       //
-      // HeaderIssue มีแค่ groupId
-      // จึง Fetch Group เพื่อดูชื่อ
-      //
-      // General
-      // Stator
-      // Lamination
-      //
       // #####################################################
 
       const groupIds = [
@@ -4151,7 +4145,7 @@ module.exports = {
 
       // #####################################################
       //
-      // 4. USER ของ HEADER
+      // 4. LOAD HEADER USER
       //
       // #####################################################
 
@@ -4195,11 +4189,11 @@ module.exports = {
 
       // #####################################################
       //
-      // 5. BUILD LABEL DOCUMENTS
+      // 5. BUILD LABEL PAGE
       //
-      // 1 Header = 1 LabelNo
+      // 1 Header = 1 Label No.
       //
-      // > 4 Lot = Next Page
+      // 4 Lot / Page
       //
       // #####################################################
 
@@ -4225,39 +4219,101 @@ module.exports = {
           .toUpperCase();
 
         // ===================================================
-        // REAL CONTROL LOT
+        // REAL OQC LOT NO.
         //
         // HeaderIssue.controlLot
         // ===================================================
 
         const realControlLot = String(header.controlLot || "").trim();
 
-        // ===================================================
-        // DETERMINE OQC VALUE
+        // ###################################################
+        //
+        // OQC / QR RULE
+        //
+        // ###################################################
         //
         // CASE 1
-        // WIP ทุก Group
-        // -> Location
+        //
+        // WIP + ANY GROUP
+        //
+        // Document OQC     = HIDE
+        // Stock In QR      = HIDE (-)
+        // Issue D/O QR     = HIDE (-)
+        //
         //
         // CASE 2
-        // FG + Lamination
-        // -> Location
+        //
+        // FG + LAMINATION
+        //
+        // Document OQC     = HIDE
+        // Stock In QR      = SHOW
+        // Issue D/O QR     = SHOW
+        //
+        // QR OQC VALUE
+        // = Rack + Area
+        // = F105
+        //
         //
         // CASE 3
-        // FG + General / Stator
-        // -> HeaderIssue.controlLot
         //
-        // FG Group อื่น
-        // -> controlLot ตามปกติ
+        // FG + GENERAL / STATOR
+        //
+        // Document OQC     = controlLot
+        // Stock In QR      = SHOW
+        // Issue D/O QR     = SHOW
+        //
+        // QR OQC VALUE
+        // = controlLot
+        //
+        // ###################################################
+
+        const isWip = labelType === "WIP";
+
+        const isFgLamination = labelType === "FG" && groupName === "LAMINATION";
+
+        // ===================================================
+        // OQC บนเอกสาร
+        // ===================================================
+        //
+        // WIP = ไม่ Show
+        //
+        // FG + Lamination = ไม่ Show
+        //
+        // FG + General/Stator = Show
+        //
         // ===================================================
 
-        const useLocationAsOqc =
-          labelType === "WIP" ||
-          (labelType === "FG" && groupName === "LAMINATION");
+        const showOqcLotNo = !isWip && !isFgLamination;
 
-        const effectiveOqcLotNo = useLocationAsOqc
-          ? displayLocation
-          : realControlLot;
+        // ===================================================
+        // SHOW QR
+        // ===================================================
+        //
+        // WIP
+        // = ไม่ Show QR
+        //
+        // FG
+        // = Show QR
+        //
+        // ===================================================
+
+        const showQrCode = !isWip;
+
+        // ===================================================
+        // VALUE ที่ใช้ใน QR
+        // ===================================================
+        //
+        // FG + Lamination
+        // = F105
+        //
+        // FG + General / Stator
+        // = controlLot
+        //
+        // WIP ไม่ได้ใช้ เพราะ QR ถูก Hide
+        //
+        // ===================================================
+
+        const qrOqcLotNo = isFgLamination ? displayLocation : realControlLot;
 
         // ===================================================
         // HEADER USER
@@ -4307,7 +4363,7 @@ module.exports = {
         }
 
         // ===================================================
-        // FRACTION BOX
+        // LOAD FRACTION MAP
         // ===================================================
 
         const fractionBoxIdSet = new Set();
@@ -4385,7 +4441,11 @@ module.exports = {
         for (const box of boxes) {
           const isFraction = fractionBoxIdSet.has(Number(box.id));
 
-          addRowToGroup(box, isFraction ? "PARTIAL" : "FULL");
+          addRowToGroup(
+            box,
+
+            isFraction ? "PARTIAL" : "FULL"
+          );
         }
 
         // ===================================================
@@ -4433,11 +4493,17 @@ module.exports = {
         // ===================================================
 
         groupedRows = groupedRows.sort((a, b) => {
-          return String(a.lotNo).localeCompare(String(b.lotNo), undefined, {
-            numeric: true,
+          return String(a.lotNo).localeCompare(
+            String(b.lotNo),
 
-            sensitivity: "base",
-          });
+            undefined,
+
+            {
+              numeric: true,
+
+              sensitivity: "base",
+            }
+          );
         });
 
         groupedRows = groupedRows.map((row, index) => ({
@@ -4447,7 +4513,7 @@ module.exports = {
         }));
 
         // ===================================================
-        // HEADER MAIN
+        // HEADER MAIN INFO
         // ===================================================
 
         const firstAnyRow = groupedRows[0] || null;
@@ -4460,73 +4526,97 @@ module.exports = {
         // ITEM BARCODE
         // ===================================================
 
-        const topLeftBarcode = await generateBarcodeDataUrl(itemNoForBarcode, {
-          scale: 3,
+        const topLeftBarcode = await generateBarcodeDataUrl(
+          itemNoForBarcode,
 
-          height: 28,
-        });
+          {
+            scale: 3,
+
+            height: 28,
+          }
+        );
 
         // ===================================================
         // PALLET + LABEL QR
+        //
+        // ตัวนี้ยังแสดงทุก Case
         // ===================================================
 
         const idPalletLabelQrText = `${idPallet}\t${labelNo}`;
 
         const idPalletLabelQr = await generateQrDataUrl(
           idPalletLabelQrText,
+
           140
         );
 
         // ===================================================
-        // QR PER LOT
-        //
-        // IMPORTANT:
-        //
-        // effectiveOqcLotNo
-        //
-        // ถูกใช้ทั้ง
-        // - Stock in
-        // - Issue D/O
-        //
+        // GENERATE QR PER LOT
         // ===================================================
 
         const groupedRowsWithQr = [];
 
         for (const row of groupedRows) {
-          // ===============================================
-          // STOCK IN QR
-          // ===============================================
+          // =================================================
+          // DEFAULT
+          // =================================================
 
-          const stockInQrText = buildStockInQrText({
-            oqcLotNo: effectiveOqcLotNo,
+          let stockInQrText = "";
 
-            dieNo: row.dieNo || "",
+          let issueDoQrText = "";
 
-            lotNo: row.lotNo || "",
+          let stockInQr = null;
 
-            totalQty: row.totalQty || 0,
-          });
+          let issueDoQr = null;
 
-          // ===============================================
-          // ISSUE D/O QR
-          // ===============================================
+          // =================================================
+          // WIP
+          //
+          // ไม่สร้าง QR
+          // =================================================
 
-          const issueDoQrText = buildIssueDoQrText({
-            lotNo: row.lotNo || "",
+          if (showQrCode) {
+            // ===============================================
+            // STOCK IN QR
+            // ===============================================
 
-            dieNo: row.dieNo || "",
+            stockInQrText = buildStockInQrText({
+              oqcLotNo: qrOqcLotNo,
 
-            oqcLotNo: effectiveOqcLotNo,
+              dieNo: row.dieNo || "",
 
-            idPallet: idPallet,
-          });
+              lotNo: row.lotNo || "",
 
-          const stockInQr = await generateQrDataUrl(stockInQrText);
+              totalQty: row.totalQty || 0,
+            });
 
-          const issueDoQr = await generateQrDataUrl(issueDoQrText);
+            // ===============================================
+            // ISSUE D/O QR
+            // ===============================================
+
+            issueDoQrText = buildIssueDoQrText({
+              lotNo: row.lotNo || "",
+
+              dieNo: row.dieNo || "",
+
+              oqcLotNo: qrOqcLotNo,
+
+              idPallet: idPallet,
+            });
+
+            // ===============================================
+            // GENERATE IMAGE
+            // ===============================================
+
+            stockInQr = await generateQrDataUrl(stockInQrText);
+
+            issueDoQr = await generateQrDataUrl(issueDoQrText);
+          }
 
           groupedRowsWithQr.push({
             ...row,
+
+            showQrCode: showQrCode,
 
             stockInQrText: stockInQrText,
 
@@ -4576,7 +4666,7 @@ module.exports = {
             location: displayLocation,
 
             // ===============================================
-            // HEADER / LABEL
+            // HEADER
             // ===============================================
 
             headerId: header.id,
@@ -4592,23 +4682,24 @@ module.exports = {
             groupName: headerGroup?.name || "",
 
             // ===============================================
-            // OQC
-            //
-            // WIP
-            // -> Location
-            //
-            // FG Lamination
-            // -> Location
-            //
-            // FG General / Stator
-            // -> controlLot
+            // OQC SETTINGS
             // ===============================================
-
-            controlLot: effectiveOqcLotNo,
 
             realControlLot: realControlLot,
 
-            useLocationAsOqc: useLocationAsOqc,
+            // ค่า OQC ที่แสดงในเอกสาร
+            // ถ้าไม่ Show จะเป็น ""
+            documentOqcLotNo: showOqcLotNo ? realControlLot : "",
+
+            showOqcLotNo: showOqcLotNo,
+
+            qrOqcLotNo: qrOqcLotNo,
+
+            showQrCode: showQrCode,
+
+            // ===============================================
+            // OTHER HEADER DATA
+            // ===============================================
 
             moveMentThreeMonth: header.moveMentThreeMonth,
 
@@ -4652,7 +4743,7 @@ module.exports = {
       }
 
       // =====================================================
-      // NO LABEL
+      // NO LABEL PAGE
       // =====================================================
 
       if (allLabelPages.length === 0) {
@@ -4663,7 +4754,7 @@ module.exports = {
 
       // #####################################################
       //
-      // RENDER HTML
+      // HTML HELPERS
       //
       // #####################################################
 
@@ -4689,6 +4780,33 @@ module.exports = {
               `;
           })
           .join("");
+      };
+
+      // =====================================================
+      // QR CELL
+      //
+      // WIP
+      // -> -
+      //
+      // FG
+      // -> QR
+      // =====================================================
+
+      const renderQrCell = (showQrCode, qrImage) => {
+        if (!showQrCode || !qrImage) {
+          return `
+            <div class="no-qr">
+              -
+            </div>
+          `;
+        }
+
+        return `
+          <img
+            class="qr-img"
+            src="${qrImage}"
+          />
+        `;
       };
 
       // =====================================================
@@ -4737,12 +4855,16 @@ module.exports = {
             <tr class="data-row">
   
               <td class="row-no">
+  
                 ${escapeHtml(row.no)}
+  
               </td>
   
   
               <td class="lot-cell">
+  
                 ${escapeHtml(row.lotNo)}
+  
               </td>
   
   
@@ -4769,20 +4891,14 @@ module.exports = {
   
               <td class="qr-cell">
   
-                <img
-                  class="qr-img"
-                  src="${row.stockInQr}"
-                />
+                ${renderQrCell(row.showQrCode, row.stockInQr)}
   
               </td>
   
   
               <td class="qr-cell">
   
-                <img
-                  class="qr-img"
-                  src="${row.issueDoQr}"
-                />
+                ${renderQrCell(row.showQrCode, row.issueDoQr)}
   
               </td>
   
@@ -4872,13 +4988,23 @@ module.exports = {
                 </div>
   
   
-                <div class="highlight-oqc">
+                ${
+                  pageData.showOqcLotNo
+                    ? `
+                      <div class="highlight-oqc">
   
-                  OQC Lot No.&nbsp;
+                        OQC Lot No.&nbsp;
   
-                  ${escapeHtml(pageData.controlLot)}
+                        ${escapeHtml(pageData.documentOqcLotNo)}
   
-                </div>
+                      </div>
+                    `
+                    : `
+                      <div class="highlight-oqc-empty">
+                        &nbsp;
+                      </div>
+                    `
+                }
   
   
                 <div></div>
@@ -5168,7 +5294,7 @@ module.exports = {
       };
 
       // =====================================================
-      // ALL PAGE
+      // RENDER ALL PAGE
       // =====================================================
 
       const pagesHtml = allLabelPages
@@ -5490,6 +5616,14 @@ module.exports = {
   
               white-space:
                 nowrap;
+  
+            }
+  
+  
+            .highlight-oqc-empty {
+  
+              min-height:
+                41px;
   
             }
   
@@ -5970,6 +6104,32 @@ module.exports = {
             }
   
   
+            .no-qr {
+  
+              height:
+                72px;
+  
+              display:
+                flex;
+  
+              align-items:
+                center;
+  
+              justify-content:
+                center;
+  
+              color:
+                #64748b;
+  
+              font-size:
+                22px;
+  
+              font-weight:
+                700;
+  
+            }
+  
+  
             .empty-row td {
   
               height:
@@ -6098,9 +6258,13 @@ module.exports = {
 
       const page = await browser.newPage();
 
-      await page.setContent(html, {
-        waitUntil: "networkidle0",
-      });
+      await page.setContent(
+        html,
+
+        {
+          waitUntil: "networkidle0",
+        }
+      );
 
       // =====================================================
       // WAIT FONT + IMAGE
@@ -6170,7 +6334,13 @@ module.exports = {
 
       return res.send(pdfBuffer);
     } catch (error) {
-      console.error("printPalletLabel error:", error);
+      console.error("printPalletLabel error:", {
+        palletId: req.body?.palletId,
+
+        message: error?.message,
+
+        stack: error?.stack,
+      });
 
       return res.status(500).send({
         error: error?.message || "Cannot generate Pallet Label PDF",
