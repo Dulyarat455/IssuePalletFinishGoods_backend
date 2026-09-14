@@ -45,6 +45,8 @@ app.post('/api/location/addRack', (req,res) => locationController.addRack(req,re
 app.post('/api/location/addArea', (req,res) => locationController.addArea(req,res))
 app.post('/api/location/mapAreaRack',(req,res) => locationController.mapAreaRack(req,res))
 app.get('/api/location/list',(req,res) => locationController.list(req,res))
+app.get('/api/location/mapLocationPallet',(req,res) => locationController.maplocationPallet(req,res))
+
 
 //controlLot
 app.post('/api/controlLot/add', (req,res) => controlLotController.add(req,res))
