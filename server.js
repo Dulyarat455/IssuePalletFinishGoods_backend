@@ -25,7 +25,6 @@ app.post('/api/user/list', (req, res) => userController.list(req,res))
 app.post('/api/user/signIn', (req, res) => userController.signIn(req,res))
 
 // group
-
 app.post('/api/group/add', (req,res) => groupController.add(req,res))
 app.get('/api/group/list',(req,res) => groupController.list(req,res))
 
@@ -45,7 +44,8 @@ app.post('/api/location/addRack', (req,res) => locationController.addRack(req,re
 app.post('/api/location/addArea', (req,res) => locationController.addArea(req,res))
 app.post('/api/location/mapAreaRack',(req,res) => locationController.mapAreaRack(req,res))
 app.get('/api/location/list',(req,res) => locationController.list(req,res))
-app.get('/api/location/mapLocationPallet',(req,res) => locationController.maplocationPallet(req,res))
+app.get('/api/location/mapLocationPallet',(req,res) => locationController.mapLocationPallet(req,res))
+app.get('/api/location/mapLocationPalletBox',(req,res) => locationController.mapLocationPalletBox(req,res))
 
 
 //controlLot
