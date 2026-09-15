@@ -545,17 +545,16 @@ module.exports = {
           .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
       }
 
-      //  //check in table box before scan receive temp
-      //  const  checkBoxIssue = await prisma.box.findFirst({
-      //   where: {
-      //       wosNo: wosNo,
-      //       BoxState: "wait",
-      //       status: "use"
-      //   }
-      // })
-      // if(checkBoxIssue){
-      //   return res.status(400).send({ message: 'WOS No นี้ทำการ Issue แล้ว'});
-      // }
+       //check in table box before scan receive temp
+       const  checkBoxIssue = await prisma.box.findFirst({
+        where: {
+            wosNo: wosNo,
+            status: "use"
+        }
+      })
+      if(checkBoxIssue){
+        return res.status(400).send({ message: 'WOS No นี้อยู่ในระบบ แล้ว'});
+      }
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
         where: {
@@ -812,6 +811,21 @@ module.exports = {
           .status(400)
           .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
       }
+
+
+
+       //check in table box before scan receive temp
+       const  checkBoxIssue = await prisma.box.findFirst({
+        where: {
+            wosNo: wosNo,
+            status: "use"
+        }
+      })
+      if(checkBoxIssue){
+        return res.status(400).send({ message: 'WOS No นี้อยู่ในระบบ แล้ว'});
+      }
+
+
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
         where: {
@@ -4048,14 +4062,39 @@ module.exports = {
       // F105
       // =====================================================
 
-      const areaName = String(pallet?.MapAreaRack?.Area?.name || "").trim();
+      // LOCATION
+      const areaName = String(
+        pallet?.MapAreaRack?.Area?.name || ""
+      ).trim();
 
-      const rackName = String(pallet?.MapAreaRack?.Rack?.name || "").trim();
+      const rackName = String(
+        pallet?.MapAreaRack?.Rack?.name || ""
+      ).trim();
 
-      const displayLocation =
-        areaName || rackName
-          ? `${rackName}${areaName}`
-          : String(pallet.mapAreaRackId || "");
+      const rackNameUpper = rackName.toUpperCase();
+
+      let displayLocation = "";
+
+      // Pending = ____
+      if (rackNameUpper === "PENDING") {
+
+        displayLocation = "________";
+
+      }
+      // Normal = Rack + Area
+      else if (rackName || areaName) {
+
+        displayLocation = `${rackName}${areaName}`;
+
+      }
+      // Fallback
+      else {
+
+        displayLocation = String(
+          pallet.mapAreaRackId || ""
+        );
+
+      }
 
       // #####################################################
       //
