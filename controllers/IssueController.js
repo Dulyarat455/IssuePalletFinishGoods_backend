@@ -545,15 +545,15 @@ module.exports = {
           .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
       }
 
-       //check in table box before scan receive temp
-       const  checkBoxIssue = await prisma.box.findFirst({
+      //check in table box before scan receive temp
+      const checkBoxIssue = await prisma.box.findFirst({
         where: {
-            wosNo: wosNo,
-            status: "use"
-        }
-      })
-      if(checkBoxIssue){
-        return res.status(400).send({ message: 'WOS No นี้อยู่ในระบบ แล้ว'});
+          wosNo: wosNo,
+          status: "use",
+        },
+      });
+      if (checkBoxIssue) {
+        return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
       }
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
@@ -812,20 +812,16 @@ module.exports = {
           .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
       }
 
-
-
-       //check in table box before scan receive temp
-       const  checkBoxIssue = await prisma.box.findFirst({
+      //check in table box before scan receive temp
+      const checkBoxIssue = await prisma.box.findFirst({
         where: {
-            wosNo: wosNo,
-            status: "use"
-        }
-      })
-      if(checkBoxIssue){
-        return res.status(400).send({ message: 'WOS No นี้อยู่ในระบบ แล้ว'});
+          wosNo: wosNo,
+          status: "use",
+        },
+      });
+      if (checkBoxIssue) {
+        return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
       }
-
-
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
         where: {
@@ -4063,13 +4059,9 @@ module.exports = {
       // =====================================================
 
       // LOCATION
-      const areaName = String(
-        pallet?.MapAreaRack?.Area?.name || ""
-      ).trim();
+      const areaName = String(pallet?.MapAreaRack?.Area?.name || "").trim();
 
-      const rackName = String(
-        pallet?.MapAreaRack?.Rack?.name || ""
-      ).trim();
+      const rackName = String(pallet?.MapAreaRack?.Rack?.name || "").trim();
 
       const rackNameUpper = rackName.toUpperCase();
 
@@ -4077,23 +4069,15 @@ module.exports = {
 
       // Pending = ____
       if (rackNameUpper === "PENDING") {
-
         displayLocation = "________";
-
       }
       // Normal = Rack + Area
       else if (rackName || areaName) {
-
         displayLocation = `${rackName}${areaName}`;
-
       }
       // Fallback
       else {
-
-        displayLocation = String(
-          pallet.mapAreaRackId || ""
-        );
-
+        displayLocation = String(pallet.mapAreaRackId || "");
       }
 
       // #####################################################
@@ -7738,6 +7722,480 @@ module.exports = {
       });
     } catch (e) {
       console.error("LIST PALLET ERROR:", e);
+
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  //part Actual
+
+  listPalletById: async (req, res) => {
+    try {
+      // =====================================================
+      // CONFIG
+      // =====================================================
+
+      const CHUNK_SIZE = 500;
+
+      // =====================================================
+      // INPUT
+      // =====================================================
+
+      const { palletId } = req.body;
+
+      // =====================================================
+      // VALIDATE PALLET ID
+      // =====================================================
+
+      const palletIdNumber = Number(palletId);
+
+      if (!Number.isInteger(palletIdNumber) || palletIdNumber <= 0) {
+        return res.status(400).send({
+          message: "invalid_pallet_id",
+
+          error: "palletId is required and must be a positive integer",
+        });
+      }
+
+      // =====================================================
+      // HELPER
+      // แบ่ง Array ทีละ 500
+      // =====================================================
+
+      const chunkArray = (array, size = CHUNK_SIZE) => {
+        const result = [];
+
+        for (let i = 0; i < array.length; i += size) {
+          result.push(array.slice(i, i + size));
+        }
+
+        return result;
+      };
+
+      // =====================================================
+      // 1. FETCH PALLET
+      //
+      // เอาเฉพาะ Pallet เดียวตาม palletId
+      // =====================================================
+
+      const pallet = await prisma.pallet.findUnique({
+        where: {
+          id: palletIdNumber,
+        },
+      });
+
+      // =====================================================
+      // PALLET NOT FOUND
+      // =====================================================
+
+      if (!pallet) {
+        return res.status(404).send({
+          message: "pallet_not_found",
+
+          summary: {
+            totalPallet: 0,
+
+            totalHeader: 0,
+
+            totalBox: 0,
+
+            normalBox: 0,
+
+            fractionBox: 0,
+
+            totalQty: 0,
+          },
+
+          results: [],
+        });
+      }
+
+      // =====================================================
+      // 2. FETCH HEADER ISSUE
+      //
+      // ใช้ Cursor ID ทีละ 500
+      //
+      // แม้ Pallet มีอันเดียว
+      // แต่ Header อาจเยอะได้
+      // =====================================================
+
+      const headers = [];
+
+      let lastHeaderId = 0;
+
+      while (true) {
+        const rows = await prisma.headerIssue.findMany({
+          where: {
+            palletId: palletIdNumber,
+
+            id: {
+              gt: lastHeaderId,
+            },
+          },
+
+          orderBy: {
+            id: "asc",
+          },
+
+          take: CHUNK_SIZE,
+        });
+
+        if (rows.length === 0) {
+          break;
+        }
+
+        headers.push(...rows);
+
+        lastHeaderId = Number(rows[rows.length - 1].id);
+      }
+
+      // =====================================================
+      // 3. FETCH BOX
+      //
+      // Header ID ทีละ 500
+      // และ Box Result ทีละ 500
+      // =====================================================
+
+      const boxes = [];
+
+      const headerIds = headers.map((row) => Number(row.id));
+
+      const headerIdChunks = chunkArray(headerIds);
+
+      for (const headerIdChunk of headerIdChunks) {
+        let lastBoxId = 0;
+
+        while (true) {
+          const rows = await prisma.box.findMany({
+            where: {
+              headerId: {
+                in: headerIdChunk,
+              },
+
+              id: {
+                gt: lastBoxId,
+              },
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            take: CHUNK_SIZE,
+          });
+
+          if (rows.length === 0) {
+            break;
+          }
+
+          boxes.push(...rows);
+
+          lastBoxId = Number(rows[rows.length - 1].id);
+        }
+      }
+
+      // =====================================================
+      // 4. FETCH MAP FRACTION
+      //
+      // ใช้ boxId เพื่อดูว่า Box ไหนเป็น Fraction
+      // =====================================================
+
+      const fractionMaps = [];
+
+      const boxIds = boxes.map((row) => Number(row.id));
+
+      const boxIdChunks = chunkArray(boxIds);
+
+      for (const boxIdChunk of boxIdChunks) {
+        let lastMapId = 0;
+
+        while (true) {
+          const rows = await prisma.mapHeaderIssueFraction.findMany({
+            where: {
+              boxId: {
+                in: boxIdChunk,
+              },
+
+              id: {
+                gt: lastMapId,
+              },
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            take: CHUNK_SIZE,
+          });
+
+          if (rows.length === 0) {
+            break;
+          }
+
+          fractionMaps.push(...rows);
+
+          lastMapId = Number(rows[rows.length - 1].id);
+        }
+      }
+
+      // =====================================================
+      // 5. FRACTION BOX SET
+      //
+      // เอา boxId ที่อยู่ใน MapHeaderIssueFraction
+      // มาเก็บใน Set
+      // =====================================================
+
+      const fractionBoxIdSet = new Set(
+        fractionMaps.map((row) => Number(row.boxId))
+      );
+
+      // =====================================================
+      // 6. GROUP BOX BY HEADER ID
+      // =====================================================
+
+      const boxByHeaderId = new Map();
+
+      for (const box of boxes) {
+        const headerId = Number(box.headerId);
+
+        if (!boxByHeaderId.has(headerId)) {
+          boxByHeaderId.set(headerId, []);
+        }
+
+        const isFraction = fractionBoxIdSet.has(Number(box.id));
+
+        boxByHeaderId.get(headerId).push({
+          id: Number(box.id),
+
+          headerId: headerId,
+
+          headerClosedId:
+            box.headerClosedId == null ? null : Number(box.headerClosedId),
+
+          itemNo: box.itemNo,
+
+          itemName: box.itemName,
+
+          wosNo: box.wosNo,
+
+          dwg: box.dwg,
+
+          dieNo: box.dieNo,
+
+          lotNo: box.lotNo,
+
+          qty: Number(box.qty || 0),
+
+          timeStmp: box.timeStmp,
+
+          status: box.status,
+
+          // ===============================================
+          // FRACTION
+          // ===============================================
+
+          isFraction: isFraction,
+
+          boxType: isFraction ? "FRACTION" : "NORMAL",
+        });
+      }
+
+      // =====================================================
+      // 7. SORT BOX
+      //
+      // NORMAL ก่อน
+      // FRACTION อยู่ด้านล่าง
+      // จากนั้นเรียง ID ASC
+      // =====================================================
+
+      for (const [headerId, headerBoxes] of boxByHeaderId.entries()) {
+        headerBoxes.sort((a, b) => {
+          const typeA = a.isFraction ? 1 : 0;
+
+          const typeB = b.isFraction ? 1 : 0;
+
+          if (typeA !== typeB) {
+            return typeA - typeB;
+          }
+
+          return Number(a.id) - Number(b.id);
+        });
+
+        boxByHeaderId.set(headerId, headerBoxes);
+      }
+
+      // =====================================================
+      // 8. BUILD HEADER
+      // =====================================================
+
+      const palletHeaders = [];
+
+      for (const header of headers) {
+        const headerBoxes = boxByHeaderId.get(Number(header.id)) || [];
+
+        const normalBoxes = headerBoxes.filter((box) => !box.isFraction);
+
+        const fractionBoxes = headerBoxes.filter((box) => box.isFraction);
+
+        const totalQty = headerBoxes.reduce(
+          (sum, box) => sum + Number(box.qty || 0),
+
+          0
+        );
+
+        palletHeaders.push({
+          id: Number(header.id),
+
+          palletId: Number(header.palletId),
+
+          labelNo: header.labelNo,
+
+          itemNo: header.itemNo,
+
+          itemName: header.itemName,
+
+          normalQty: Number(header.normalQty || 0),
+
+          fractionQty: Number(header.fractionQty || 0),
+
+          groupId: Number(header.groupId),
+
+          controlLot: header.controlLot,
+
+          moveMentThreeMonth: header.moveMentThreeMonth,
+
+          userId: Number(header.userId),
+
+          timeStmp: header.timeStmp,
+
+          status: header.status,
+
+          // ===============================================
+          // HEADER SUMMARY
+          // ===============================================
+
+          totalBox: headerBoxes.length,
+
+          normalBox: normalBoxes.length,
+
+          fractionBox: fractionBoxes.length,
+
+          totalQty: totalQty,
+
+          // ===============================================
+          // BOX
+          // ===============================================
+
+          boxes: headerBoxes,
+        });
+      }
+
+      // =====================================================
+      // HEADER ID ASC
+      // =====================================================
+
+      palletHeaders.sort((a, b) => Number(a.id) - Number(b.id));
+
+      // =====================================================
+      // 9. PALLET SUMMARY
+      // =====================================================
+
+      const totalBox = palletHeaders.reduce(
+        (sum, header) => sum + Number(header.totalBox || 0),
+
+        0
+      );
+
+      const normalBox = palletHeaders.reduce(
+        (sum, header) => sum + Number(header.normalBox || 0),
+
+        0
+      );
+
+      const fractionBox = palletHeaders.reduce(
+        (sum, header) => sum + Number(header.fractionBox || 0),
+
+        0
+      );
+
+      const totalQty = palletHeaders.reduce(
+        (sum, header) => sum + Number(header.totalQty || 0),
+
+        0
+      );
+
+      // =====================================================
+      // 10. BUILD FINAL PALLET
+      // =====================================================
+
+      const palletResult = {
+        id: Number(pallet.id),
+
+        palletNoId: pallet.palletNoId,
+
+        date: pallet.date,
+
+        shift: pallet.shift,
+
+        mapAreaRackId: Number(pallet.mapAreaRackId),
+
+        labelType: pallet.labelType,
+
+        userId: Number(pallet.userId),
+
+        timeStmp: pallet.timeStmp,
+
+        // =============================================
+        // PALLET SUMMARY
+        // =============================================
+
+        totalHeader: palletHeaders.length,
+
+        totalBox: totalBox,
+
+        normalBox: normalBox,
+
+        fractionBox: fractionBox,
+
+        totalQty: totalQty,
+
+        // =============================================
+        // HEADER
+        // =============================================
+
+        headers: palletHeaders,
+      };
+
+      // =====================================================
+      // SUCCESS
+      //
+      // Response Format ให้เหมือน listPallet
+      // แต่มี Pallet เดียว
+      // =====================================================
+
+      return res.send({
+        message: "fetch_pallet_by_id_success",
+
+        summary: {
+          totalPallet: 1,
+
+          totalHeader: palletResult.totalHeader,
+
+          totalBox: palletResult.totalBox,
+
+          normalBox: palletResult.normalBox,
+
+          fractionBox: palletResult.fractionBox,
+
+          totalQty: palletResult.totalQty,
+        },
+
+        results: [palletResult],
+      });
+    } catch (e) {
+      console.error("LIST PALLET BY ID ERROR:", e);
 
       return res.status(500).send({
         error: e.message,

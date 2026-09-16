@@ -83,6 +83,7 @@ app.post('/api/issue/printPalletLabel', (req, res) => issueController.printPalle
 app.post('/api/issue/deletePalletTemp',(req, res) => issueController.deletePalletTemp(req,res));
 app.post('/api/issue/savePallet',(req, res) => issueController.savePallet(req,res));
 app.get('/api/issue/listPallet',(req, res) => issueController.listPallet(req,res));
+app.get('/api/issue/listPalletById',(req, res) => issueController.listPalletById(req,res));
 
 
 
