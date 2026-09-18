@@ -27,6 +27,7 @@ model User {
   PalletTemp PalletTemp[]
   Pallet Pallet[]
   HeaderClosedTemp HeaderClosedTemp[]
+  HeaderBoxClosed HeaderBoxClosed[]
 }
 
 
@@ -108,7 +109,7 @@ model PalletTemp {
   HeaderIssueTemp HeaderIssueTemp[]
 }
 
-
+// value in closedState is complete   
 model Pallet {
   id Int @id() @default(autoincrement())
   palletNoId String
@@ -117,10 +118,13 @@ model Pallet {
   mapAreaRackId Int
   labelType String
   userId Int
+  closedState String?  
   timeStmp DateTime @default(now())
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   MapAreaRack MapAreaRack @relation(fields: [mapAreaRackId], references: [id], onDelete: NoAction, onUpdate: NoAction )
   HeaderIssue HeaderIssue[]
+  HeaderClosedTemp HeaderClosedTemp[]
+  HeaderBoxClosed HeaderBoxClosed[]
 
 }
 
@@ -164,6 +168,7 @@ model HeaderIssue {
   Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   Box Box[]
   HeaderClosedTemp HeaderClosedTemp[]
+  HeaderBoxClosed HeaderBoxClosed[]
 }
 
 model ControlLot {
@@ -255,7 +260,7 @@ model Box {
   HeaderIssue HeaderIssue @relation(fields: [headerId], references: [id], onDelete: NoAction, onUpdate: NoAction )
   MapHeaderIssueFraction MapHeaderIssueFraction[]
   HeaderClosedTemp HeaderClosedTemp[]
-
+  HeaderBoxClosed HeaderBoxClosed[]
 }
 
 
@@ -263,15 +268,35 @@ model HeaderClosedTemp {
   id Int @id() @default(autoincrement())
   boxId Int
   headId Int
+  palletId Int
   userId Int 
   timeStmp DateTime @default(now())
   status String @default("use")
   Box Box @relation(fields: [boxId], references: [id], onDelete: NoAction, onUpdate: NoAction )
   HeaderIssue HeaderIssue @relation(fields: [headId], references: [id], onDelete: NoAction, onUpdate: NoAction )
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
 }
 
+
+model HeaderBoxClosed {
+  id Int @id() @default(autoincrement())
+  headerClosedId Int
+  boxId Int
+  headId Int
+  palletId Int
+  userId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  Box Box @relation(fields: [boxId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  HeaderIssue HeaderIssue @relation(fields: [headId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+  Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+
+// may be can choose many box/time
 model HeaderClosed {
   id Int @id() @default(autoincrement())
   closedNo String
