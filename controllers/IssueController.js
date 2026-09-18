@@ -6375,6 +6375,2162 @@ module.exports = {
     }
   },
 
+  printLabelInPallet: async (req, res) => {
+    let browser;
+
+    try {
+      // =====================================================
+      // PUPPETEER
+      // =====================================================
+
+      const { default: puppeteer } = await import("puppeteer");
+
+      // =====================================================
+      // REQUEST
+      // =====================================================
+
+      const { palletId, headerId } = req.body || {};
+
+      const palletIdInt = Number(palletId);
+
+      const headerIdInt = Number(headerId);
+
+      if (!Number.isInteger(palletIdInt) || palletIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_palletId",
+        });
+      }
+
+      if (!Number.isInteger(headerIdInt) || headerIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_headerId",
+        });
+      }
+
+      // =====================================================
+      // CONFIG
+      // =====================================================
+
+      const CHUNK_SIZE = 500;
+
+      const ROWS_PER_PAGE = 4;
+
+      // #####################################################
+      //
+      // HELPERS
+      //
+      // #####################################################
+
+      // =====================================================
+      // ESCAPE HTML
+      // =====================================================
+
+      const escapeHtml = (value) => {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      };
+
+      // =====================================================
+      // FORMAT NUMBER
+      // =====================================================
+
+      const formatNumber = (value) => {
+        const n = Number(value || 0);
+
+        if (!Number.isFinite(n)) {
+          return "0";
+        }
+
+        return n.toLocaleString("en-US");
+      };
+
+      // =====================================================
+      // FORMAT DATE
+      // =====================================================
+
+      const formatDateDMY = (value) => {
+        if (!value) {
+          return "";
+        }
+
+        const d = new Date(value);
+
+        if (Number.isNaN(d.getTime())) {
+          return "";
+        }
+
+        return (
+          `${d.getDate()}/` + `${d.getMonth() + 1}/` + `${d.getFullYear()}`
+        );
+      };
+
+      // =====================================================
+      // SHORT LOT NO
+      // =====================================================
+
+      const getShortLotNo = (lotNo) => {
+        const raw = String(lotNo || "").trim();
+
+        if (!raw) {
+          return "";
+        }
+
+        if (raw.length >= 6) {
+          return raw.slice(1, 6);
+        }
+
+        return raw;
+      };
+
+      // =====================================================
+      // ARRAY CHUNK
+      // =====================================================
+
+      const chunkArray = (arr, size) => {
+        const result = [];
+
+        for (let i = 0; i < arr.length; i += size) {
+          result.push(arr.slice(i, i + size));
+        }
+
+        return result;
+      };
+
+      // =====================================================
+      // QTY MULTIPLY
+      // =====================================================
+
+      const qtyMultiplyList = (qtyList = []) => {
+        const qtyMap = new Map();
+
+        for (const qty of qtyList) {
+          const n = Number(qty || 0);
+
+          qtyMap.set(n, (qtyMap.get(n) || 0) + 1);
+        }
+
+        return Array.from(qtyMap.entries()).map(([qty, count]) => ({
+          qty: qty,
+
+          count: count,
+
+          text: `${formatNumber(qty)} x ${count}`,
+        }));
+      };
+
+      // =====================================================
+      // IMAGE BUFFER -> DATA URI
+      // =====================================================
+
+      const toPngDataUri = (buffer) => {
+        return "data:image/png;base64," + buffer.toString("base64");
+      };
+
+      // =====================================================
+      // BARCODE
+      // =====================================================
+
+      const generateBarcodeDataUrl = async (text, opts = {}) => {
+        const png = await bwipjs.toBuffer({
+          bcid: "code128",
+
+          text: String(text || ""),
+
+          scale: opts.scale || 2,
+
+          height: opts.height || 18,
+
+          includetext: false,
+
+          textxalign: "center",
+
+          backgroundcolor: "FFFFFF",
+        });
+
+        return toPngDataUri(png);
+      };
+
+      // =====================================================
+      // QR CODE
+      // =====================================================
+
+      const generateQrDataUrl = async (text, width = 150) => {
+        return await QRCode.toDataURL(
+          String(text ?? ""),
+
+          {
+            errorCorrectionLevel: "M",
+
+            margin: 1,
+
+            width: width,
+          }
+        );
+      };
+
+      // =====================================================
+      // PAD RIGHT
+      // =====================================================
+
+      const padRight = (value, len) => {
+        return String(value ?? "")
+          .padEnd(len, " ")
+          .slice(0, len);
+      };
+
+      // =====================================================
+      // PAD LEFT
+      // =====================================================
+
+      const padLeft = (value, len) => {
+        return String(value ?? "")
+          .padStart(len, " ")
+          .slice(-len);
+      };
+
+      // =====================================================
+      // STOCK IN QR TEXT
+      // =====================================================
+
+      const buildStockInQrText = ({ oqcLotNo, dieNo, lotNo, totalQty }) => {
+        const oqcPart = padRight(oqcLotNo || "", 6);
+
+        const scPart = padRight("", 1);
+
+        const diePart = padRight(dieNo || "", 10);
+
+        const lotPart = padRight(lotNo || "", 12);
+
+        const qtyPart = padLeft(totalQty == null ? "" : String(totalQty), 13);
+
+        return oqcPart + scPart + diePart + lotPart + qtyPart;
+      };
+
+      // =====================================================
+      // ISSUE D/O QR TEXT
+      // =====================================================
+
+      const buildIssueDoQrText = ({ lotNo, dieNo, oqcLotNo, idPallet }) => {
+        const lotPart = padRight(lotNo || "", 8);
+
+        const diePart = padRight(dieNo || "", 5);
+
+        const boxQtyPart = padRight("", 3);
+
+        const oqcPalletPart = padRight(
+          `${oqcLotNo || ""}/${idPallet || ""}`,
+          15
+        );
+
+        const remarkPart = padRight("", 15);
+
+        return lotPart + diePart + boxQtyPart + oqcPalletPart + remarkPart;
+      };
+
+      // #####################################################
+      //
+      // 1. LOAD PALLET
+      //
+      // #####################################################
+
+      const pallet = await prisma.pallet.findUnique({
+        where: {
+          id: palletIdInt,
+        },
+
+        include: {
+          User: true,
+
+          MapAreaRack: {
+            include: {
+              Area: true,
+
+              Rack: true,
+            },
+          },
+        },
+      });
+
+      if (!pallet) {
+        return res.status(404).send({
+          message: "pallet_not_found",
+        });
+      }
+
+      // =====================================================
+      // PALLET NO
+      // =====================================================
+
+      const idPallet = String(pallet.palletNoId || "").trim();
+
+      // =====================================================
+      // LABEL TYPE
+      // =====================================================
+
+      const labelType =
+        String(pallet.labelType || "FG")
+          .trim()
+          .toUpperCase() || "FG";
+
+      // =====================================================
+      // LOCATION
+      // =====================================================
+
+      const areaName = String(pallet?.MapAreaRack?.Area?.name || "").trim();
+
+      const rackName = String(pallet?.MapAreaRack?.Rack?.name || "").trim();
+
+      const rackNameUpper = rackName.toUpperCase();
+
+      let displayLocation = "";
+
+      if (rackNameUpper === "PENDING") {
+        displayLocation = "________";
+      } else if (rackName || areaName) {
+        displayLocation = `${rackName}${areaName}`;
+      } else {
+        displayLocation = String(pallet.mapAreaRackId || "");
+      }
+
+      // #####################################################
+      //
+      // 2. LOAD HEADER
+      //
+      // ต้องเป็น Header ของ Pallet นี้จริง
+      //
+      // #####################################################
+
+      const header = await prisma.headerIssue.findFirst({
+        where: {
+          id: headerIdInt,
+
+          palletId: palletIdInt,
+
+          status: "use",
+        },
+      });
+
+      if (!header) {
+        return res.status(404).send({
+          message: "header_issue_not_found_in_pallet",
+        });
+      }
+
+      const labelNo = String(header.labelNo || "").trim();
+
+      if (!labelNo) {
+        return res.status(404).send({
+          message: "label_no_not_found",
+        });
+      }
+
+      // #####################################################
+      //
+      // 3. LOAD GROUP
+      //
+      // #####################################################
+
+      const headerGroup = await prisma.group.findFirst({
+        where: {
+          id: Number(header.groupId),
+        },
+
+        select: {
+          id: true,
+
+          name: true,
+        },
+      });
+
+      const groupName = String(headerGroup?.name || "")
+        .trim()
+        .toUpperCase();
+
+      // #####################################################
+      //
+      // 4. LOAD HEADER USER
+      //
+      // #####################################################
+
+      const headerUser = await prisma.user.findFirst({
+        where: {
+          id: Number(header.userId),
+        },
+
+        select: {
+          id: true,
+
+          empNo: true,
+
+          name: true,
+        },
+      });
+
+      const printUser = headerUser || pallet.User || null;
+
+      // =====================================================
+      // CONTROL LOT
+      // =====================================================
+
+      const realControlLot = String(header.controlLot || "").trim();
+
+      // =====================================================
+      // DOCUMENT / QR RULE
+      // =====================================================
+
+      const isWip = labelType === "WIP";
+
+      const isFgLamination = labelType === "FG" && groupName === "LAMINATION";
+
+      const showOqcLotNo = !isWip && !isFgLamination;
+
+      const showQrCode = !isWip;
+
+      const qrOqcLotNo = isFgLamination ? displayLocation : realControlLot;
+
+      // #####################################################
+      //
+      // 5. LOAD BOX
+      //
+      // CHUNK 500
+      //
+      // #####################################################
+
+      const boxes = [];
+
+      let lastBoxId = 0;
+
+      while (true) {
+        const boxChunk = await prisma.box.findMany({
+          where: {
+            headerId: headerIdInt,
+
+            status: "use",
+
+            id: {
+              gt: lastBoxId,
+            },
+          },
+
+          orderBy: {
+            id: "asc",
+          },
+
+          take: CHUNK_SIZE,
+        });
+
+        if (boxChunk.length === 0) {
+          break;
+        }
+
+        boxes.push(...boxChunk);
+
+        lastBoxId = Number(boxChunk[boxChunk.length - 1].id);
+      }
+
+      if (boxes.length === 0) {
+        return res.status(404).send({
+          message: "box_not_found",
+        });
+      }
+
+      // #####################################################
+      //
+      // 6. LOAD FRACTION MAP
+      //
+      // CHUNK 500
+      //
+      // #####################################################
+
+      const fractionBoxIdSet = new Set();
+
+      for (let i = 0; i < boxes.length; i += CHUNK_SIZE) {
+        const boxIds = boxes
+          .slice(i, i + CHUNK_SIZE)
+          .map((box) => Number(box.id));
+
+        const fractionMaps = await prisma.mapHeaderIssueFraction.findMany({
+          where: {
+            headerId: headerIdInt,
+
+            status: "use",
+
+            boxId: {
+              in: boxIds,
+            },
+          },
+
+          select: {
+            boxId: true,
+          },
+        });
+
+        for (const map of fractionMaps) {
+          fractionBoxIdSet.add(Number(map.boxId));
+        }
+      }
+
+      // #####################################################
+      //
+      // 7. GROUP BY LOT
+      //
+      // #####################################################
+
+      const groupMap = new Map();
+
+      const addRowToGroup = (box, kind) => {
+        const shortLotNo = getShortLotNo(box.lotNo || "");
+
+        const key = shortLotNo || "-";
+
+        if (!groupMap.has(key)) {
+          groupMap.set(key, {
+            lotNo: shortLotNo || "-",
+
+            dwg: String(box.dwg || "").trim(),
+
+            dieNo: String(box.dieNo || "").trim(),
+
+            itemNo: String(box.itemNo || "").trim(),
+
+            itemName: String(box.itemName || "").trim(),
+
+            fullQtyList: [],
+
+            partialQtyList: [],
+          });
+        }
+
+        const target = groupMap.get(key);
+
+        const qty = Number(box.qty || 0);
+
+        if (kind === "FULL") {
+          target.fullQtyList.push(qty);
+        } else {
+          target.partialQtyList.push(qty);
+        }
+      };
+
+      // =====================================================
+      // ADD BOX TO GROUP
+      // =====================================================
+
+      for (const box of boxes) {
+        const isFraction = fractionBoxIdSet.has(Number(box.id));
+
+        addRowToGroup(
+          box,
+
+          isFraction ? "PARTIAL" : "FULL"
+        );
+      }
+
+      // =====================================================
+      // BUILD GROUPED ROW
+      // =====================================================
+
+      let groupedRows = Array.from(groupMap.values()).map((group, index) => {
+        const fullQtyItems = qtyMultiplyList(group.fullQtyList);
+
+        const partialQtyItems = qtyMultiplyList(group.partialQtyList);
+
+        const fullTotal = group.fullQtyList.reduce(
+          (sum, qty) => sum + Number(qty || 0),
+          0
+        );
+
+        const partialTotal = group.partialQtyList.reduce(
+          (sum, qty) => sum + Number(qty || 0),
+          0
+        );
+
+        return {
+          no: index + 1,
+
+          lotNo: group.lotNo,
+
+          dwg: group.dwg,
+
+          dieNo: group.dieNo,
+
+          itemNo: group.itemNo,
+
+          itemName: group.itemName,
+
+          fullBoxText: fullQtyItems.map((item) => item.text),
+
+          partialBoxText: partialQtyItems.map((item) => item.text),
+
+          totalQty: fullTotal + partialTotal,
+        };
+      });
+
+      // =====================================================
+      // SORT LOT
+      // =====================================================
+
+      groupedRows = groupedRows.sort((a, b) => {
+        return String(a.lotNo).localeCompare(
+          String(b.lotNo),
+
+          undefined,
+
+          {
+            numeric: true,
+
+            sensitivity: "base",
+          }
+        );
+      });
+
+      groupedRows = groupedRows.map((row, index) => ({
+        ...row,
+
+        no: index + 1,
+      }));
+
+      // =====================================================
+      // MAIN HEADER INFO
+      // =====================================================
+
+      const firstAnyRow = groupedRows[0] || null;
+
+      const itemNoForBarcode = firstAnyRow?.itemNo || header.itemNo || "";
+
+      const itemName = header.itemName || firstAnyRow?.itemName || "";
+
+      // =====================================================
+      // ITEM BARCODE
+      // =====================================================
+
+      const topLeftBarcode = await generateBarcodeDataUrl(
+        itemNoForBarcode,
+
+        {
+          scale: 3,
+
+          height: 28,
+        }
+      );
+
+      // =====================================================
+      // PALLET + LABEL QR
+      // =====================================================
+
+      const idPalletLabelQrText = `${idPallet}\t${labelNo}`;
+
+      const idPalletLabelQr = await generateQrDataUrl(
+        idPalletLabelQrText,
+
+        140
+      );
+
+      // #####################################################
+      //
+      // 8. GENERATE QR PER LOT
+      //
+      // #####################################################
+
+      const groupedRowsWithQr = [];
+
+      for (const row of groupedRows) {
+        let stockInQrText = "";
+
+        let issueDoQrText = "";
+
+        let stockInQr = null;
+
+        let issueDoQr = null;
+
+        if (showQrCode) {
+          stockInQrText = buildStockInQrText({
+            oqcLotNo: qrOqcLotNo,
+
+            dieNo: row.dieNo || "",
+
+            lotNo: row.lotNo || "",
+
+            totalQty: row.totalQty || 0,
+          });
+
+          issueDoQrText = buildIssueDoQrText({
+            lotNo: row.lotNo || "",
+
+            dieNo: row.dieNo || "",
+
+            oqcLotNo: qrOqcLotNo,
+
+            idPallet: idPallet,
+          });
+
+          stockInQr = await generateQrDataUrl(stockInQrText);
+
+          issueDoQr = await generateQrDataUrl(issueDoQrText);
+        }
+
+        groupedRowsWithQr.push({
+          ...row,
+
+          showQrCode: showQrCode,
+
+          stockInQrText: stockInQrText,
+
+          issueDoQrText: issueDoQrText,
+
+          stockInQr: stockInQr,
+
+          issueDoQr: issueDoQr,
+        });
+      }
+
+      // =====================================================
+      // GRAND TOTAL
+      // =====================================================
+
+      const grandTotalQty = groupedRowsWithQr.reduce((sum, row) => {
+        return sum + Number(row.totalQty || 0);
+      }, 0);
+
+      // #####################################################
+      //
+      // 9. 4 LOT / PAGE
+      //
+      // #####################################################
+
+      const pageGroups =
+        groupedRowsWithQr.length > 0
+          ? chunkArray(groupedRowsWithQr, ROWS_PER_PAGE)
+          : [[]];
+
+      const allLabelPages = [];
+
+      for (let pageIndex = 0; pageIndex < pageGroups.length; pageIndex++) {
+        allLabelPages.push({
+          // PALLET
+
+          palletId: pallet.id,
+
+          palletNoId: idPallet,
+
+          palletDate: pallet.date,
+
+          labelType: labelType,
+
+          location: displayLocation,
+
+          // HEADER
+
+          headerId: header.id,
+
+          labelNo: labelNo,
+
+          // GROUP
+
+          groupId: header.groupId,
+
+          groupName: headerGroup?.name || "",
+
+          // OQC
+
+          realControlLot: realControlLot,
+
+          documentOqcLotNo: showOqcLotNo ? realControlLot : "",
+
+          showOqcLotNo: showOqcLotNo,
+
+          qrOqcLotNo: qrOqcLotNo,
+
+          showQrCode: showQrCode,
+
+          // OTHER
+
+          moveMentThreeMonth: header.moveMentThreeMonth,
+
+          itemNo: itemNoForBarcode,
+
+          itemName: itemName,
+
+          // USER
+
+          employeeEmpNo: printUser?.empNo || "",
+
+          employeeName: printUser?.name || "",
+
+          // BARCODE / QR
+
+          topLeftBarcode: topLeftBarcode,
+
+          idPalletLabelQr: idPalletLabelQr,
+
+          // TOTAL
+
+          grandTotalQty: grandTotalQty,
+
+          // PAGE
+
+          rows: pageGroups[pageIndex],
+
+          pageNo: pageIndex + 1,
+
+          totalPage: pageGroups.length,
+        });
+      }
+
+      // #####################################################
+      //
+      // HTML HELPERS
+      //
+      // #####################################################
+
+      // =====================================================
+      // QTY CELL
+      // =====================================================
+
+      const renderQtyCell = (items) => {
+        if (!items || !items.length) {
+          return `
+            <div class="cell-line">
+              -
+            </div>
+          `;
+        }
+
+        return items
+          .map((text) => {
+            return `
+                <div class="cell-line">
+                  ${escapeHtml(text)}
+                </div>
+              `;
+          })
+          .join("");
+      };
+
+      // =====================================================
+      // QR CELL
+      // =====================================================
+
+      const renderQrCell = (showQrCode, qrImage) => {
+        if (!showQrCode || !qrImage) {
+          return `
+            <div class="no-qr">
+              -
+            </div>
+          `;
+        }
+
+        return `
+          <img
+            class="qr-img"
+            src="${qrImage}"
+          />
+        `;
+      };
+
+      // =====================================================
+      // EMPTY ROW
+      // =====================================================
+
+      const renderEmptyRow = () => {
+        return `
+          <tr class="empty-row">
+  
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+  
+          </tr>
+        `;
+      };
+
+      // =====================================================
+      // TABLE ROWS
+      // =====================================================
+
+      const renderTableRows = (rows) => {
+        const htmlRows = [];
+
+        for (let i = 0; i < ROWS_PER_PAGE; i++) {
+          const row = rows[i];
+
+          if (!row) {
+            htmlRows.push(renderEmptyRow());
+
+            continue;
+          }
+
+          htmlRows.push(`
+            <tr class="data-row">
+  
+              <td class="row-no">
+                ${escapeHtml(row.no)}
+              </td>
+  
+              <td class="lot-cell">
+                ${escapeHtml(row.lotNo)}
+              </td>
+  
+              <td class="box-cell">
+                ${renderQtyCell(row.fullBoxText)}
+              </td>
+  
+              <td class="box-cell">
+                ${renderQtyCell(row.partialBoxText)}
+              </td>
+  
+              <td class="total-cell">
+                ${escapeHtml(formatNumber(row.totalQty))}
+              </td>
+  
+              <td class="qr-cell">
+                ${renderQrCell(row.showQrCode, row.stockInQr)}
+              </td>
+  
+              <td class="qr-cell">
+                ${renderQrCell(row.showQrCode, row.issueDoQr)}
+              </td>
+  
+            </tr>
+          `);
+        }
+
+        return htmlRows.join("");
+      };
+
+      // =====================================================
+      // RENDER PAGE
+      // =====================================================
+
+      const renderPage = (pageData) => {
+        const rows = pageData.rows || [];
+
+        const firstRow = rows[0] || null;
+
+        const dwgNo = firstRow?.dwg || "";
+
+        const dieNo = firstRow?.dieNo || "";
+
+        return `
+          <section class="page">
+  
+            <div class="sheet">
+  
+              <div class="top-header">
+  
+                <div class="barcode-wrap">
+  
+                  <img
+                    class="top-barcode"
+                    src="${pageData.topLeftBarcode}"
+                  />
+  
+                </div>
+  
+  
+                <div class="top-center">
+  
+                  <div class="item-no">
+                    ${escapeHtml(pageData.itemNo)}
+                  </div>
+  
+  
+                  <div class="item-name">
+                    ${escapeHtml(pageData.itemName)}
+                  </div>
+  
+                </div>
+  
+  
+                <div class="top-type">
+                  ${escapeHtml(pageData.labelType)}
+                </div>
+  
+              </div>
+  
+  
+              <div class="highlight-row">
+  
+                <div class="highlight-location">
+                  Loc.
+                  ${escapeHtml(pageData.location)}
+                </div>
+  
+  
+                ${
+                  pageData.showOqcLotNo
+                    ? `
+                      <div class="highlight-oqc">
+                        OQC Lot No.&nbsp;
+                        ${escapeHtml(pageData.documentOqcLotNo)}
+                      </div>
+                    `
+                    : `
+                      <div class="highlight-oqc-empty">
+                        &nbsp;
+                      </div>
+                    `
+                }
+  
+  
+                <div></div>
+  
+              </div>
+  
+  
+              <div class="meta-grid">
+  
+                <div class="meta-left">
+  
+                  <div class="meta-row">
+  
+                    <span class="label">
+                      Date :
+                    </span>
+  
+                    <span class="value">
+                      ${escapeHtml(formatDateDMY(pageData.palletDate))}
+                    </span>
+  
+                  </div>
+  
+  
+                  <div class="meta-row employee-row">
+  
+                    <span class="label">
+                      Employee. :
+                    </span>
+  
+                    <span class="value employee-value">
+  
+                      <span>
+                        ${escapeHtml(pageData.employeeEmpNo)}
+                      </span>
+  
+                      <span>
+                        ${escapeHtml(pageData.employeeName)}
+                      </span>
+  
+                    </span>
+  
+                  </div>
+  
+  
+                  <div class="meta-row remark-row">
+  
+                    <span class="label">
+                      Remark
+                    </span>
+  
+                    <span class="value">
+                      &nbsp;
+                    </span>
+  
+                  </div>
+  
+                </div>
+  
+  
+                <div class="meta-center">
+  
+                  <div class="meta-row">
+  
+                    <span class="label">
+                      Dwg.No.
+                    </span>
+  
+                    <span class="value">
+                      ${escapeHtml(dwgNo)}
+                    </span>
+  
+                  </div>
+  
+  
+                  <div class="meta-row">
+  
+                    <span class="label">
+                      Die No.
+                    </span>
+  
+                    <span class="value">
+                      ${escapeHtml(dieNo)}
+                    </span>
+  
+                  </div>
+  
+  
+                  <div class="meta-row">
+  
+                    <span class="label">
+                      Total Qty
+                    </span>
+  
+                    <span class="value">
+  
+                      ${escapeHtml(formatNumber(pageData.grandTotalQty))}
+  
+                      <span class="pcs">
+                        pcs
+                      </span>
+  
+                    </span>
+  
+                  </div>
+  
+                </div>
+  
+  
+                <div class="id-qr-block">
+  
+                  <img
+                    class="id-qr-img"
+                    src="${pageData.idPalletLabelQr}"
+                  />
+  
+  
+                  <div class="id-info">
+  
+                    <div>
+                      ID Pallet :
+                      ${escapeHtml(pageData.palletNoId)}
+                    </div>
+  
+  
+                    <div>
+                      Label No :
+                      ${escapeHtml(pageData.labelNo)}
+                    </div>
+  
+  
+                    ${
+                      pageData.totalPage > 1
+                        ? `
+                          <div class="page-info">
+                            Page
+                            ${pageData.pageNo}
+                            /
+                            ${pageData.totalPage}
+                          </div>
+                        `
+                        : ""
+                    }
+  
+                  </div>
+  
+                </div>
+  
+              </div>
+  
+  
+              <div class="table-area">
+  
+                <table class="main-table">
+  
+                  <thead>
+  
+                    <tr>
+  
+                      <th class="col-no">
+                        No.
+                      </th>
+  
+                      <th class="col-lot">
+                        Lot No.
+                      </th>
+  
+                      <th class="col-box">
+                        Full Box
+                      </th>
+  
+                      <th class="col-box">
+                        Partial Box
+                      </th>
+  
+                      <th class="col-total">
+                        Total Qty
+                      </th>
+  
+                      <th class="col-qr">
+                        Stock in
+                      </th>
+  
+                      <th class="col-qr">
+                        Issue D/O
+                      </th>
+  
+                    </tr>
+  
+                  </thead>
+  
+  
+                  <tbody>
+                    ${renderTableRows(rows)}
+                  </tbody>
+  
+                </table>
+  
+              </div>
+  
+  
+              <div class="bottom-bar">
+  
+                <div class="bottom-left">
+  
+                  Normal movement within 3 month.
+  
+                  &nbsp;&nbsp;&nbsp;
+  
+                  If over, move within :
+  
+                  <b>
+                    ${escapeHtml(pageData.moveMentThreeMonth || "-")}
+                  </b>
+  
+                </div>
+  
+  
+                <div class="bottom-right">
+                  QA-02-001-A0646 Rev. C
+                </div>
+  
+              </div>
+  
+            </div>
+  
+          </section>
+        `;
+      };
+
+      // =====================================================
+      // RENDER ALL PAGE
+      // =====================================================
+
+      const pagesHtml = allLabelPages
+        .map((pageData) => renderPage(pageData))
+        .join("");
+
+      // #####################################################
+      //
+      // HTML
+      //
+      // #####################################################
+
+      const html = `
+        <!DOCTYPE html>
+  
+        <html>
+  
+        <head>
+  
+          <meta charset="UTF-8" />
+  
+          <style>
+  
+            @page {
+              size:
+                A4 landscape;
+  
+              margin:
+                5mm;
+            }
+  
+  
+            * {
+              box-sizing:
+                border-box;
+            }
+  
+  
+            html,
+            body {
+              margin:
+                0;
+  
+              padding:
+                0;
+  
+              width:
+                100%;
+  
+              font-family:
+                Arial,
+                "TH Sarabun New",
+                sans-serif;
+  
+              color:
+                #111;
+            }
+  
+  
+            body {
+              font-size:
+                14px;
+            }
+  
+  
+            .page {
+              width:
+                100%;
+  
+              height:
+                200mm;
+  
+              break-after:
+                page;
+  
+              page-break-after:
+                always;
+            }
+  
+  
+            .page:last-child {
+              break-after:
+                auto;
+  
+              page-break-after:
+                auto;
+            }
+  
+  
+            .sheet {
+              width:
+                100%;
+  
+              height:
+                200mm;
+  
+              border:
+                2px solid #222;
+  
+              padding:
+                8px 10px 8px;
+  
+              display:
+                flex;
+  
+              flex-direction:
+                column;
+  
+              position:
+                relative;
+            }
+  
+  
+            .top-header {
+              display:
+                grid;
+  
+              grid-template-columns:
+                300px
+                minmax(0, 1fr)
+                78px;
+  
+              column-gap:
+                24px;
+  
+              align-items:
+                start;
+  
+              min-height:
+                106px;
+  
+              margin-bottom:
+                3px;
+            }
+  
+  
+            .barcode-wrap {
+              padding-top:
+                5px;
+            }
+  
+  
+            .top-barcode {
+              display:
+                block;
+  
+              width:
+                285px;
+  
+              height:
+                72px;
+  
+              object-fit:
+                fill;
+            }
+  
+  
+            .top-center {
+              padding-top:
+                1px;
+  
+              min-width:
+                0;
+            }
+  
+  
+            .item-no {
+              color:
+                #111;
+  
+              font-size:
+                48px;
+  
+              line-height:
+                1;
+  
+              font-weight:
+                900;
+  
+              letter-spacing:
+                0.2px;
+  
+              white-space:
+                nowrap;
+  
+              margin-bottom:
+                13px;
+            }
+  
+  
+            .item-name {
+              color:
+                #111;
+  
+              font-size:
+                41px;
+  
+              line-height:
+                1.02;
+  
+              font-weight:
+                900;
+  
+              white-space:
+                nowrap;
+            }
+  
+  
+            .top-type {
+              color:
+                #111;
+  
+              text-align:
+                right;
+  
+              font-size:
+                36px;
+  
+              line-height:
+                1;
+  
+              font-weight:
+                900;
+  
+              padding-top:
+                9px;
+            }
+  
+  
+            .highlight-row {
+              display:
+                grid;
+  
+              grid-template-columns:
+                300px
+                minmax(0, 1fr)
+                78px;
+  
+              column-gap:
+                24px;
+  
+              align-items:
+                center;
+  
+              min-height:
+                51px;
+  
+              margin-top:
+                0;
+  
+              margin-bottom:
+                14px;
+            }
+  
+  
+            .highlight-location,
+            .highlight-oqc {
+              color:
+                #111;
+  
+              font-family:
+                Arial,
+                "TH Sarabun New",
+                sans-serif;
+  
+              font-size:
+                41px;
+  
+              line-height:
+                1.02;
+  
+              font-weight:
+                900;
+  
+              white-space:
+                nowrap;
+            }
+  
+  
+            .highlight-oqc-empty {
+              min-height:
+                41px;
+            }
+  
+  
+            .meta-grid {
+              display:
+                grid;
+  
+              grid-template-columns:
+                1.05fr
+                0.95fr
+                0.35fr
+                175px;
+  
+              column-gap:
+                18px;
+  
+              align-items:
+                start;
+  
+              margin-top:
+                0;
+  
+              margin-bottom:
+                3px;
+            }
+  
+  
+            .meta-left {
+              grid-column:
+                1;
+            }
+  
+  
+            .meta-center {
+              grid-column:
+                2;
+            }
+  
+  
+            .id-qr-block {
+              grid-column:
+                4;
+  
+              display:
+                flex;
+  
+              flex-direction:
+                column;
+  
+              align-items:
+                center;
+  
+              justify-content:
+                flex-start;
+  
+              margin-top:
+                0;
+  
+              padding-top:
+                0;
+            }
+  
+  
+            .meta-row {
+              display:
+                grid;
+  
+              grid-template-columns:
+                125px
+                minmax(0, 1fr);
+  
+              column-gap:
+                8px;
+  
+              align-items:
+                baseline;
+  
+              min-height:
+                22px;
+  
+              margin-bottom:
+                3px;
+            }
+  
+  
+            .meta-row .label {
+              color:
+                #64748b;
+  
+              font-size:
+                16px;
+  
+              line-height:
+                1.15;
+  
+              font-weight:
+                700;
+  
+              white-space:
+                nowrap;
+            }
+  
+  
+            .meta-row .value {
+              color:
+                #111;
+  
+              font-size:
+                16px;
+  
+              line-height:
+                1.15;
+  
+              font-weight:
+                800;
+  
+              word-break:
+                break-word;
+            }
+  
+  
+            .employee-row {
+              align-items:
+                start;
+            }
+  
+  
+            .employee-value {
+              display:
+                flex;
+  
+              flex-direction:
+                column;
+  
+              row-gap:
+                3px;
+            }
+  
+  
+            .remark-row {
+              margin-top:
+                2px;
+            }
+  
+  
+            .pcs {
+              margin-left:
+                5px;
+  
+              font-size:
+                14px;
+            }
+  
+  
+            .id-qr-img {
+              display:
+                block;
+  
+              width:
+                68px;
+  
+              height:
+                68px;
+  
+              object-fit:
+                contain;
+  
+              margin:
+                0 auto 4px;
+            }
+  
+  
+            .id-info {
+              width:
+                175px;
+  
+              font-size:
+                13px;
+  
+              line-height:
+                1.3;
+  
+              color:
+                #111;
+  
+              text-align:
+                center;
+  
+              white-space:
+                nowrap;
+            }
+  
+  
+            .id-info > div {
+              text-align:
+                center;
+  
+              margin-bottom:
+                2px;
+            }
+  
+  
+            .page-info {
+              color:
+                #64748b;
+  
+              font-size:
+                10px;
+            }
+  
+  
+            .table-area {
+              flex:
+                0 0 auto;
+  
+              width:
+                100%;
+  
+              margin-top:
+                5px;
+            }
+  
+  
+            .main-table {
+              width:
+                100%;
+  
+              border-collapse:
+                collapse;
+  
+              table-layout:
+                fixed;
+            }
+  
+  
+            .main-table th,
+            .main-table td {
+              border:
+                1px solid #333;
+            }
+  
+  
+            .main-table th {
+              height:
+                31px;
+  
+              padding:
+                4px 6px;
+  
+              background:
+                #f4f4f4;
+  
+              color:
+                #111;
+  
+              font-size:
+                15px;
+  
+              line-height:
+                1.1;
+  
+              font-weight:
+                500;
+  
+              text-align:
+                center;
+  
+              vertical-align:
+                middle;
+            }
+  
+  
+            .main-table tbody tr {
+              height:
+                82px;
+            }
+  
+  
+            .main-table td {
+              height:
+                82px;
+  
+              padding:
+                7px;
+  
+              color:
+                #111;
+  
+              font-size:
+                15px;
+  
+              line-height:
+                1.25;
+  
+              vertical-align:
+                top;
+  
+              overflow-wrap:
+                anywhere;
+  
+              word-break:
+                break-word;
+            }
+  
+  
+            .col-no {
+              width:
+                56px;
+            }
+  
+  
+            .col-lot {
+              width:
+                175px;
+            }
+  
+  
+            .col-box {
+              width:
+                148px;
+            }
+  
+  
+            .col-total {
+              width:
+                148px;
+            }
+  
+  
+            .col-qr {
+              width:
+                145px;
+            }
+  
+  
+            .row-no {
+              text-align:
+                center;
+            }
+  
+  
+            .lot-cell {
+              text-align:
+                left;
+  
+              font-weight:
+                500;
+            }
+  
+  
+            .box-cell {
+              text-align:
+                left;
+            }
+  
+  
+            .total-cell {
+              text-align:
+                right;
+  
+              font-weight:
+                500;
+            }
+  
+  
+            .cell-line {
+              line-height:
+                1.35;
+  
+              margin-bottom:
+                3px;
+            }
+  
+  
+            .qr-cell {
+              text-align:
+                center;
+  
+              vertical-align:
+                middle !important;
+  
+              padding:
+                4px !important;
+            }
+  
+  
+            .qr-img {
+              display:
+                inline-block;
+  
+              width:
+                72px;
+  
+              height:
+                72px;
+  
+              object-fit:
+                contain;
+            }
+  
+  
+            .no-qr {
+              height:
+                72px;
+  
+              display:
+                flex;
+  
+              align-items:
+                center;
+  
+              justify-content:
+                center;
+  
+              color:
+                #64748b;
+  
+              font-size:
+                22px;
+  
+              font-weight:
+                700;
+            }
+  
+  
+            .empty-row td {
+              height:
+                82px;
+  
+              background:
+                #fff;
+            }
+  
+  
+            .bottom-bar {
+              flex:
+                0 0 auto;
+  
+              min-height:
+                35px;
+  
+              margin-top:
+                auto;
+  
+              padding:
+                7px 2px 0;
+  
+              display:
+                grid;
+  
+              grid-template-columns:
+                minmax(0, 82%)
+                minmax(0, 18%);
+  
+              column-gap:
+                6px;
+  
+              align-items:
+                end;
+            }
+  
+  
+            .bottom-left {
+              color:
+                #64748b;
+  
+              font-size:
+                25px;
+  
+              line-height:
+                1.05;
+  
+              font-weight:
+                400;
+  
+              white-space:
+                nowrap;
+            }
+  
+  
+            .bottom-left b {
+              color:
+                #111;
+  
+              font-weight:
+                900;
+            }
+  
+  
+            .bottom-right {
+              color:
+                #111;
+  
+              font-size:
+                14px;
+  
+              line-height:
+                1.1;
+  
+              font-weight:
+                800;
+  
+              white-space:
+                nowrap;
+  
+              text-align:
+                right;
+            }
+  
+          </style>
+  
+        </head>
+  
+  
+        <body>
+  
+          ${pagesHtml}
+  
+        </body>
+  
+        </html>
+      `;
+
+      // #####################################################
+      //
+      // 10. PUPPETEER
+      //
+      // #####################################################
+
+      browser = await puppeteer.launch({
+        headless: true,
+
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+
+      const page = await browser.newPage();
+
+      await page.setContent(html, {
+        waitUntil: "networkidle0",
+      });
+
+      // =====================================================
+      // WAIT FONT + IMAGE
+      // =====================================================
+
+      await page.evaluate(async () => {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+
+        const images = Array.from(document.images);
+
+        await Promise.all(
+          images.map((img) => {
+            if (img.complete) {
+              return Promise.resolve();
+            }
+
+            return new Promise((resolve) => {
+              img.onload = resolve;
+
+              img.onerror = resolve;
+            });
+          })
+        );
+      });
+
+      // =====================================================
+      // PDF
+      // =====================================================
+
+      const pdfBuffer = await page.pdf({
+        format: "A4",
+
+        landscape: true,
+
+        printBackground: true,
+
+        preferCSSPageSize: true,
+
+        margin: {
+          top: "5mm",
+
+          right: "5mm",
+
+          bottom: "5mm",
+
+          left: "5mm",
+        },
+      });
+
+      // =====================================================
+      // FILE NAME
+      // =====================================================
+
+      const safePalletNo = String(pallet.palletNoId || pallet.id).replace(
+        /[^a-zA-Z0-9_-]/g,
+        "_"
+      );
+
+      const safeLabelNo = String(header.labelNo || header.id).replace(
+        /[^a-zA-Z0-9_-]/g,
+        "_"
+      );
+
+      // =====================================================
+      // RESPONSE
+      // =====================================================
+
+      res.setHeader("Content-Type", "application/pdf");
+
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="Pallet_${safePalletNo}_Label_${safeLabelNo}.pdf"`
+      );
+
+      return res.send(pdfBuffer);
+    } catch (error) {
+      console.error("printLabelInPallet error:", {
+        palletId: req.body?.palletId,
+
+        headerId: req.body?.headerId,
+
+        message: error?.message,
+
+        stack: error?.stack,
+      });
+
+      return res.status(500).send({
+        error: error?.message || "Cannot generate Label PDF",
+      });
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
+    }
+  },
+
   savePallet: async (req, res) => {
     try {
       const { userId, palletTempId } = req.body;
@@ -8195,8 +10351,6 @@ module.exports = {
         results: [palletResult],
       });
     } catch (e) {
-      console.error("LIST PALLET BY ID ERROR:", e);
-
       return res.status(500).send({
         error: e.message,
       });
