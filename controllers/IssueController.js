@@ -10423,4 +10423,363 @@ module.exports = {
       });
     }
   },
+
+  deleteHeaderBoxInPallet: async (req, res) => {
+    try {
+      // =====================================================
+      // REQUEST
+      // =====================================================
+
+      const { palletId, headerId } = req.body || {};
+
+      // =====================================================
+      // CONFIG
+      // =====================================================
+
+      const CHUNK_SIZE = 500;
+
+      // =====================================================
+      // CONVERT
+      // =====================================================
+
+      const palletIdInt = Number(palletId);
+
+      const headerIdInt = Number(headerId);
+
+      // =====================================================
+      // VALIDATE PALLET ID
+      // =====================================================
+
+      if (!Number.isInteger(palletIdInt) || palletIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_palletId",
+        });
+      }
+
+      // =====================================================
+      // VALIDATE HEADER ID
+      // =====================================================
+
+      if (!Number.isInteger(headerIdInt) || headerIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_headerId",
+        });
+      }
+
+      // =====================================================
+      // TRANSACTION
+      // =====================================================
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+          // #################################################
+          //
+          // 1. CHECK PALLET
+          //
+          // #################################################
+
+          const pallet = await tx.pallet.findUnique({
+            where: {
+              id: palletIdInt,
+            },
+
+            select: {
+              id: true,
+
+              palletNoId: true,
+            },
+          });
+
+          if (!pallet) {
+            throw new Error("pallet_not_found");
+          }
+
+          // #################################################
+          //
+          // 2. CHECK HEADER
+          //
+          // Header ต้องอยู่ใน Pallet นี้จริง
+          //
+          // #################################################
+
+          const header = await tx.headerIssue.findFirst({
+            where: {
+              id: headerIdInt,
+
+              palletId: palletIdInt,
+            },
+
+            select: {
+              id: true,
+
+              palletId: true,
+
+              labelNo: true,
+
+              itemNo: true,
+
+              itemName: true,
+            },
+          });
+
+          if (!header) {
+            throw new Error("header_not_found_in_pallet");
+          }
+
+          // #################################################
+          //
+          // 3. GET MAP HEADER ISSUE FRACTION
+          //
+          // เก็บ Box ID ไว้ก่อน
+          //
+          // อ่านทีละ 500
+          //
+          // #################################################
+
+          const fractionBoxIds = [];
+
+          let lastMapId = 0;
+
+          while (true) {
+            const mapChunk = await tx.mapHeaderIssueFraction.findMany({
+              where: {
+                headerId: headerIdInt,
+
+                id: {
+                  gt: lastMapId,
+                },
+              },
+
+              orderBy: {
+                id: "asc",
+              },
+
+              take: CHUNK_SIZE,
+
+              select: {
+                id: true,
+
+                boxId: true,
+              },
+            });
+
+            if (mapChunk.length === 0) {
+              break;
+            }
+
+            for (const map of mapChunk) {
+              fractionBoxIds.push(Number(map.boxId));
+            }
+
+            lastMapId = Number(mapChunk[mapChunk.length - 1].id);
+          }
+
+          // =================================================
+          // REMOVE DUPLICATE BOX ID
+          // =================================================
+
+          const uniqueFractionBoxIds = [...new Set(fractionBoxIds)];
+
+          // #################################################
+          //
+          // 4. DELETE MAP HEADER ISSUE FRACTION
+          //
+          // ต้องลบก่อน Box
+          //
+          // #################################################
+
+          const deletedFractionMaps =
+            await tx.mapHeaderIssueFraction.deleteMany({
+              where: {
+                headerId: headerIdInt,
+              },
+            });
+
+          // #################################################
+          //
+          // 5. GET ALL BOX IDS OF HEADER
+          //
+          // เก็บไว้สำหรับ Summary
+          //
+          // #################################################
+
+          const allBoxIds = [];
+
+          let lastBoxId = 0;
+
+          while (true) {
+            const boxChunk = await tx.box.findMany({
+              where: {
+                headerId: headerIdInt,
+
+                id: {
+                  gt: lastBoxId,
+                },
+              },
+
+              orderBy: {
+                id: "asc",
+              },
+
+              take: CHUNK_SIZE,
+
+              select: {
+                id: true,
+              },
+            });
+
+            if (boxChunk.length === 0) {
+              break;
+            }
+
+            for (const box of boxChunk) {
+              allBoxIds.push(Number(box.id));
+            }
+
+            lastBoxId = Number(boxChunk[boxChunk.length - 1].id);
+          }
+
+          // #################################################
+          //
+          // 6. DELETE BOX
+          //
+          // ลบ Box ทุกตัวที่อยู่ภายใต้ Header นี้
+          //
+          // ทั้ง NORMAL และ FRACTION
+          //
+          // #################################################
+
+          const deletedBoxes = await tx.box.deleteMany({
+            where: {
+              headerId: headerIdInt,
+            },
+          });
+
+          // #################################################
+          //
+          // 7. DELETE HEADER ISSUE
+          //
+          // #################################################
+
+          const deletedHeader = await tx.headerIssue.delete({
+            where: {
+              id: headerIdInt,
+            },
+          });
+
+          // #################################################
+          //
+          // 8. RESULT
+          //
+          // #################################################
+
+          return {
+            palletId: palletIdInt,
+
+            palletNoId: pallet.palletNoId,
+
+            headerId: headerIdInt,
+
+            labelNo: header.labelNo,
+
+            itemNo: header.itemNo,
+
+            itemName: header.itemName,
+
+            // ===============================================
+            // BOX INFO
+            // ===============================================
+
+            boxIds: allBoxIds,
+
+            fractionBoxIds: uniqueFractionBoxIds,
+
+            // ===============================================
+            // DELETE COUNT
+            // ===============================================
+
+            deletedFractionMapCount: Number(deletedFractionMaps.count || 0),
+
+            deletedBoxCount: Number(deletedBoxes.count || 0),
+
+            deletedHeaderCount: deletedHeader ? 1 : 0,
+          };
+        },
+
+        // ===================================================
+        // TRANSACTION OPTION
+        // ===================================================
+
+        {
+          isolationLevel: "Serializable",
+
+          maxWait: 10000,
+
+          timeout: 120000,
+        }
+      );
+
+      // =====================================================
+      // SUCCESS
+      // =====================================================
+
+      return res.send({
+        message: "delete_header_box_in_pallet_success",
+
+        data: result,
+      });
+    } catch (e) {
+      console.error("DELETE HEADER BOX IN PALLET ERROR:", e);
+
+      // =====================================================
+      // PALLET NOT FOUND
+      // =====================================================
+
+      if (e.message === "pallet_not_found") {
+        return res.status(404).send({
+          message: "pallet_not_found",
+        });
+      }
+
+      // =====================================================
+      // HEADER NOT FOUND IN PALLET
+      // =====================================================
+
+      if (e.message === "header_not_found_in_pallet") {
+        return res.status(404).send({
+          message: "header_not_found_in_pallet",
+        });
+      }
+
+      // =====================================================
+      // FOREIGN KEY ERROR
+      // =====================================================
+
+      if (e.code === "P2003") {
+        return res.status(409).send({
+          message: "header_or_box_is_still_in_use",
+
+          error: e.message,
+        });
+      }
+
+      // =====================================================
+      // OTHER ERROR
+      // =====================================================
+
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  addHeaderInPallet: async (req, res) => {
+    try {
+      const { palletId, headerId } = req.body;
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
 };
