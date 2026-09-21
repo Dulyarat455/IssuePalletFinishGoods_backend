@@ -8618,6 +8618,127 @@ module.exports = {
             throw new Error("pallet_temp_not_found");
           }
 
+          // #################################################
+          //
+          // CHECK STORAGE AREA
+          //
+          // #################################################
+
+          // =================================================
+          // 1.1 GET MAP AREA RACK
+          //
+          // ต้องรู้ทั้ง Rack Name และ Area Name
+          // เพื่อเช็คกรณีพิเศษ Pending
+          // =================================================
+
+          const mapAreaRack = await tx.mapAreaRack.findUnique({
+            where: {
+              id: Number(palletTemp.mapAreaRackId),
+            },
+
+            include: {
+              Rack: true,
+
+              Area: true,
+            },
+          });
+
+          if (!mapAreaRack) {
+            throw new Error("map_area_rack_not_found");
+          }
+
+          // =================================================
+          // 1.2 CHECK PENDING EXCEPTION
+          //
+          // ยกเว้นเฉพาะ:
+          //
+          // Rack.name = Pending
+          // AND
+          // Area.name = Pending
+          //
+          // ถ้าใช่ สามารถมีหลาย Pallet ใน Location เดียวกันได้
+          // =================================================
+
+          const rackName = String(mapAreaRack?.Rack?.name || "")
+            .trim()
+            .toUpperCase();
+
+          const areaName = String(mapAreaRack?.Area?.name || "")
+            .trim()
+            .toUpperCase();
+
+          const isPendingLocation =
+            rackName === "PENDING" && areaName === "PENDING";
+
+          // =================================================
+          // 1.3 CHECK AREA OCCUPIED
+          //
+          // ไม่ต้อง Check ถ้าเป็น Pending
+          //
+          // Pallet ถือว่ายัง Active ถ้า:
+          //
+          // closedState = null
+          //
+          // หรือ
+          //
+          // closedState != complete
+          //
+          // =================================================
+
+          if (!isPendingLocation) {
+            const occupiedPallet = await tx.pallet.findFirst({
+              where: {
+                mapAreaRackId: Number(palletTemp.mapAreaRackId),
+
+                OR: [
+                  {
+                    closedState: null,
+                  },
+
+                  {
+                    closedState: {
+                      not: "complete",
+                    },
+                  },
+                ],
+              },
+
+              orderBy: {
+                id: "desc",
+              },
+
+              select: {
+                id: true,
+
+                palletNoId: true,
+
+                mapAreaRackId: true,
+
+                closedState: true,
+              },
+            });
+
+            if (occupiedPallet) {
+              const error = new Error("area_already_occupied");
+
+              error.data = {
+                mapAreaRackId: Number(palletTemp.mapAreaRackId),
+
+                rackName: mapAreaRack?.Rack?.name || "",
+
+                areaName: mapAreaRack?.Area?.name || "",
+
+                palletId: occupiedPallet.id,
+
+                palletNoId: occupiedPallet.palletNoId,
+
+                closedState: occupiedPallet.closedState,
+              };
+
+              throw error;
+            }
+          }
+
           // =================================================
           // 2. CURRENT THAILAND DATE
           // =================================================
@@ -8669,11 +8790,6 @@ module.exports = {
 
           // -------------------------------------------------
           // DAILY PREFIX
-          //
-          // 2026-08-01
-          //
-          // 26 + 8 + 01
-          // = 26801
           // -------------------------------------------------
 
           const dailyPrefix = `${yearCode}${monthCode}${dayCode}`;
@@ -8720,10 +8836,6 @@ module.exports = {
             }
           }
 
-          // -------------------------------------------------
-          // LIMIT 001 - 999
-          // -------------------------------------------------
-
           if (nextPalletRunning > 999) {
             throw new Error("pallet_daily_running_over_999");
           }
@@ -8750,6 +8862,9 @@ module.exports = {
 
               // User ที่กด Issue Pallet
               userId: userIdInt,
+
+              // ยังไม่ Complete
+              closedState: null,
             },
           });
 
@@ -8761,9 +8876,6 @@ module.exports = {
 
           // =================================================
           // 6. FIND LAST HEADER LABEL NO OF TODAY
-          //
-          // Query แค่ครั้งเดียว
-          // หลังจากนั้น +1 ใน Loop
           // =================================================
 
           const lastHeaderLabel = await tx.headerIssue.findFirst({
@@ -8810,7 +8922,6 @@ module.exports = {
 
           const allHeaderTempIds = [];
 
-          // เก็บ Label ที่สร้าง
           const createdLabelNos = [];
 
           // =================================================
@@ -8842,10 +8953,6 @@ module.exports = {
               take: CHUNK_SIZE,
             });
 
-            // ===============================================
-            // HEADER หมดแล้ว
-            // ===============================================
-
             if (headerTempChunk.length === 0) {
               break;
             }
@@ -8861,11 +8968,6 @@ module.exports = {
 
               // =============================================
               // 8.1 GET FRACTION QTY
-              //
-              // จาก HeaderIssueTempFraction
-              //
-              // ถ้ามีหลาย Record
-              // SUM qtyBox
               // =============================================
 
               const fractionAggregate =
@@ -8902,19 +9004,7 @@ module.exports = {
 
               const newHeader = await tx.headerIssue.create({
                 data: {
-                  // ---------------------------------------
-                  // Pallet จริง
-                  // ---------------------------------------
-
                   palletId: newPallet.id,
-
-                  // ---------------------------------------
-                  // Label No.
-                  //
-                  // เช่น
-                  // 26801001
-                  // 26801002
-                  // ---------------------------------------
 
                   labelNo: labelNo,
 
@@ -8932,10 +9022,6 @@ module.exports = {
 
                   moveMentThreeMonth: headerTemp.moveMentThreeMonth,
 
-                  // ---------------------------------------
-                  // เก็บ User ของ Header เดิม
-                  // ---------------------------------------
-
                   userId: headerTemp.userId,
 
                   status: headerTemp.status || "use",
@@ -8945,12 +9031,6 @@ module.exports = {
               createdHeaderCount++;
 
               createdLabelNos.push(labelNo);
-
-              // =============================================
-              // NEXT LABEL RUNNING
-              //
-              // Header ถัดไป +1
-              // =============================================
 
               nextLabelRunning++;
 
@@ -8963,10 +9043,6 @@ module.exports = {
               let lastBoxTempId = 0;
 
               while (true) {
-                // -------------------------------------------
-                // BOX CHUNK
-                // -------------------------------------------
-
                 const boxTempChunk = await tx.boxIssueTemp.findMany({
                   where: {
                     headerId: headerTempId,
@@ -8988,15 +9064,13 @@ module.exports = {
                 }
 
                 // ===========================================
-                // GET BOX TEMP IDs
+                // GET BOX TEMP IDS
                 // ===========================================
 
                 const boxTempIds = boxTempChunk.map((box) => Number(box.id));
 
                 // ===========================================
                 // GET FRACTION MAP
-                //
-                // Query ทั้ง Chunk ครั้งเดียว
                 // ===========================================
 
                 const tempFractionMaps =
@@ -9020,8 +9094,6 @@ module.exports = {
 
                 // ===========================================
                 // MAP FRACTION BOX
-                //
-                // key = BoxIssueTemp.id
                 // ===========================================
 
                 const fractionMapByBoxId = new Map();
@@ -9078,13 +9150,6 @@ module.exports = {
                   const tempFractionMap = fractionMapByBoxId.get(boxTempId);
 
                   if (tempFractionMap) {
-                    // ---------------------------------------
-                    // CREATE REAL FRACTION MAP
-                    //
-                    // headerId = HeaderIssue.id ใหม่
-                    // boxId    = Box.id ใหม่
-                    // ---------------------------------------
-
                     await tx.mapHeaderIssueFraction.create({
                       data: {
                         headerId: newHeader.id,
@@ -9099,19 +9164,11 @@ module.exports = {
                   }
                 }
 
-                // ===========================================
-                // NEXT BOX CHUNK
-                // ===========================================
-
                 lastBoxTempId = Number(
                   boxTempChunk[boxTempChunk.length - 1].id
                 );
               }
             }
-
-            // ===============================================
-            // NEXT HEADER CHUNK
-            // ===============================================
 
             lastHeaderTempId = Number(
               headerTempChunk[headerTempChunk.length - 1].id
@@ -9137,16 +9194,13 @@ module.exports = {
 
           // =================================================
           // 9. DELETE TEMP CHILD TABLE
-          //
-          // Header IDs ทีละ 500
           // =================================================
 
           for (let i = 0; i < allHeaderTempIds.length; i += CHUNK_SIZE) {
             const headerIdChunk = allHeaderTempIds.slice(i, i + CHUNK_SIZE);
 
             // ===============================================
-            // 9.1 DELETE
-            // MapHeaderIssueTempFraction
+            // 9.1 DELETE MAP FRACTION TEMP
             // ===============================================
 
             const deletedMaps = await tx.mapHeaderIssueTempFraction.deleteMany({
@@ -9160,8 +9214,7 @@ module.exports = {
             deletedTempMapCount += deletedMaps.count;
 
             // ===============================================
-            // 9.2 DELETE
-            // HeaderIssueTempFraction
+            // 9.2 DELETE HEADER FRACTION TEMP
             // ===============================================
 
             const deletedFractions =
@@ -9176,8 +9229,7 @@ module.exports = {
             deletedTempFractionCount += deletedFractions.count;
 
             // ===============================================
-            // 9.3 DELETE
-            // BoxIssueTemp
+            // 9.3 DELETE BOX TEMP
             // ===============================================
 
             const deletedBoxes = await tx.boxIssueTemp.deleteMany({
@@ -9191,8 +9243,7 @@ module.exports = {
             deletedTempBoxCount += deletedBoxes.count;
 
             // ===============================================
-            // 9.4 DELETE
-            // HeaderIssueTemp
+            // 9.4 DELETE HEADER TEMP
             // ===============================================
 
             const deletedHeaders = await tx.headerIssueTemp.deleteMany({
@@ -9223,9 +9274,7 @@ module.exports = {
           // =================================================
 
           return {
-            // -----------------------------------------------
             // REAL PALLET
-            // -----------------------------------------------
 
             palletTempId: palletTempIdInt,
 
@@ -9239,9 +9288,19 @@ module.exports = {
 
             labelType: newPallet.labelType,
 
-            // -----------------------------------------------
-            // LABEL NO.
-            // -----------------------------------------------
+            mapAreaRackId: newPallet.mapAreaRackId,
+
+            closedState: newPallet.closedState,
+
+            // LOCATION
+
+            rackName: mapAreaRack?.Rack?.name || "",
+
+            areaName: mapAreaRack?.Area?.name || "",
+
+            isPendingLocation: isPendingLocation,
+
+            // LABEL
 
             createdLabelNos: createdLabelNos,
 
@@ -9253,9 +9312,7 @@ module.exports = {
                 ? createdLabelNos[createdLabelNos.length - 1]
                 : null,
 
-            // -----------------------------------------------
             // CREATE COUNT
-            // -----------------------------------------------
 
             createdHeaderCount: createdHeaderCount,
 
@@ -9263,9 +9320,7 @@ module.exports = {
 
             createdFractionMapCount: createdFractionMapCount,
 
-            // -----------------------------------------------
             // DELETE TEMP COUNT
-            // -----------------------------------------------
 
             deletedTempMapCount: deletedTempMapCount,
 
@@ -9281,9 +9336,6 @@ module.exports = {
 
         // ===================================================
         // SQL SERVER
-        //
-        // Serializable ช่วยลดโอกาส
-        // Running Number ชนกัน
         // ===================================================
 
         {
@@ -9306,6 +9358,31 @@ module.exports = {
       });
     } catch (e) {
       console.error("SAVE PALLET ERROR:", e);
+
+      // =====================================================
+      // AREA ALREADY OCCUPIED
+      // =====================================================
+
+      if (e.message === "area_already_occupied") {
+        return res.status(400).send({
+          message: "area_already_occupied",
+
+          displayMessage:
+            "ไม่สามารถบันทึก Pallet ได้ เนื่องจาก Location นี้มี Pallet ใช้งานอยู่แล้ว",
+
+          data: e.data || null,
+        });
+      }
+
+      // =====================================================
+      // MAP AREA RACK NOT FOUND
+      // =====================================================
+
+      if (e.message === "map_area_rack_not_found") {
+        return res.status(404).send({
+          message: "map_area_rack_not_found",
+        });
+      }
 
       // =====================================================
       // PALLET TEMP NOT FOUND
@@ -9339,26 +9416,16 @@ module.exports = {
 
       // =====================================================
       // PRISMA UNIQUE
-      //
-      // palletNoId / labelNo ซ้ำ
       // =====================================================
 
       if (e.code === "P2002") {
         const target = String(e?.meta?.target || "");
-
-        // ---------------------------------------------------
-        // LABEL NO DUPLICATE
-        // ---------------------------------------------------
 
         if (target.toLowerCase().includes("labelno")) {
           return res.status(409).send({
             message: "label_no_already_exists",
           });
         }
-
-        // ---------------------------------------------------
-        // PALLET NO DUPLICATE
-        // ---------------------------------------------------
 
         return res.status(409).send({
           message: "pallet_no_already_exists",
