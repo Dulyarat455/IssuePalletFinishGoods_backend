@@ -86,6 +86,11 @@ app.post('/api/issue/savePallet',(req, res) => issueController.savePallet(req,re
 app.get('/api/issue/listPallet',(req, res) => issueController.listPallet(req,res));
 app.post('/api/issue/listPalletById',(req, res) => issueController.listPalletById(req,res));
 
+app.post('/api/issue/deleteHeaderBoxInPallet',(req, res) => issueController.deleteHeaderBoxInPallet(req,res));
+
+
+
+
 
 
 app.listen(3001, () => {
