@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 
 const QRCode = require("qrcode");
 const bwipjs = require("bwip-js");
+const { edit } = require("./GroupController");
 
 module.exports = {
   createPalletTemp: async (req, res) => {
@@ -10775,7 +10776,8 @@ module.exports = {
 
   addHeaderInPallet: async (req, res) => {
     try {
-      const { palletId, 
+      const {
+        palletId,
         itemNo,
         itemName,
         groupId,
@@ -10783,44 +10785,40 @@ module.exports = {
         totalBox,
         moveMentThreeMonth,
         normalQty,
-        userId
-        } = req.body;
+        userId,
+      } = req.body;
 
-        if (
-          userId == null ||
-          groupId == null ||
-          totalBox == null ||
-          normalQty == null ||
-          palletId == null ||
-          !itemNo ||
-          !itemName ||
-          !moveMentThreeMonth
-        ) {
-          return res.status(400).send({ message: "missing_required_fields" });
-        }
+      if (
+        userId == null ||
+        groupId == null ||
+        totalBox == null ||
+        normalQty == null ||
+        palletId == null ||
+        !itemNo ||
+        !itemName ||
+        !moveMentThreeMonth
+      ) {
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
 
+      const headerIssueTemp = await prisma.headerIssueTempTAC.create({
+        data: {
+          palletId: parseInt(palletId),
+          itemNo: itemNo,
+          itemName: itemName,
+          groupId: parseInt(groupId),
+          controlLot: controlLot,
+          normalQty: parseInt(normalQty),
+          totalBox: parseInt(totalBox),
+          moveMentThreeMonth: moveMentThreeMonth,
+          userId: parseInt(userId),
+        },
+      });
 
-        const headerIssueTemp = await prisma.headerIssueTempTAC.create({
-          data: {
-            palletId: parseInt(palletId),
-            itemNo: itemNo,
-            itemName: itemName,
-            groupId: parseInt(groupId),
-            controlLot: controlLot,
-            normalQty: parseInt(normalQty),
-            totalBox: parseInt(totalBox),
-            moveMentThreeMonth: moveMentThreeMonth,
-            userId: parseInt(userId),
-          },
-        });
-  
-        return res.send({
-          message: "add_issue_header_temp_success",
-          data: headerIssueTemp,
-        });
-
-
-
+      return res.send({
+        message: "add_issue_header_temp_success",
+        data: headerIssueTemp,
+      });
     } catch (e) {
       return res.status(500).send({
         error: e.message,
@@ -10828,112 +10826,10 @@ module.exports = {
     }
   },
 
-  addBoxInpallet: async( req, res) =>{
-    try{
+  addBoxInpallet: async (req, res) => {
+    try {
       const { headTempTacId, itemNo, itemName, wosNo, dwg, dieNo, lotNo, qty } =
-      req.body;
-
-    if (
-      headTempTacId == null ||
-      !itemNo ||
-      !itemName ||
-      !wosNo ||
-      !dwg ||
-      !dieNo ||
-      !lotNo ||
-      qty == null
-    ) {
-      return res.status(400).send({ message: "missing_required_fields" });
-    }
-
-    const checkBoxByItemMaster = await prisma.partMaster.findFirst({
-      where: {
-        itemNo: itemNo,
-        status: "use",
-      },
-    });
-
-    if (!checkBoxByItemMaster) {
-      return res
-        .status(400)
-        .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
-    }
-
-    //check in table box before scan receive temp
-    const checkBoxIssue = await prisma.box.findFirst({
-      where: {
-        wosNo: wosNo,
-        status: "use",
-      },
-    });
-    if (checkBoxIssue) {
-      return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
-    }
-
-    const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
-      where: {
-        wosNo: wosNo,
-        status: "use",
-      },
-    });
-
-    if (checkBoxRepeat) {
-      return res.status(400).send({ message: "WOS No นี้ถูก Scan ไปแล้ว ของ Pallet ใหม่" });
-    }
-
-
-    const CheckBoxTacRepeat = await prisma.boxTAC.findFirst({
-      where: {
-        wosNo: wosNo,
-        status: "use",
-      },
-    });
-
-
-    if (CheckBoxTacRepeat) {
-      return res.status(400).send({ message: "WOS No นี้ถูก Scan ไปแล้ว ของ Pallet เดิม" });
-    }
-
-
-    const boxIssueTemp = await prisma.boxTAC.create({
-      data: {
-        headerId: parseInt(headTempTacId),
-        itemNo: itemNo,
-        itemName: itemName,
-        wosNo: wosNo,
-        dwg: dwg,
-        dieNo: dieNo,
-        lotNo: lotNo,
-        qty: parseInt(qty),
-      },
-    });
-
-    return res.send({
-      message: "add_box_issue_temp_tac_success",
-      data: boxIssueTemp,
-    });
-
-
-    }catch(e){
-      return res.status(500).send({
-        error: e.message,
-      });
-    }
-  },
-
-
-  mapFractionTac: async(req, res) =>{
-    try{
-      const {
-        headTempTacId,
-        itemNo,
-        itemName,
-        wosNo,
-        dwg,
-        dieNo,
-        lotNo,
-        qty,
-      } = req.body;
+        req.body;
 
       if (
         headTempTacId == null ||
@@ -10947,18 +10843,6 @@ module.exports = {
       ) {
         return res.status(400).send({ message: "missing_required_fields" });
       }
-
-      const checkHeaderTempTAC = await prisma.headerIssueTempTAC.findFirst({
-        where: {
-          id: parseInt(headTempTacId),
-          status: "use",
-        },
-      });
-
-      if (!checkHeaderTempTAC) {
-        return res.status(400).send({ message: "header_issueTempTac_notFound" });
-      }
-
 
       const checkBoxByItemMaster = await prisma.partMaster.findFirst({
         where: {
@@ -10992,9 +10876,115 @@ module.exports = {
       });
 
       if (checkBoxRepeat) {
-        return res.status(400).send({ message: "WOS No นี้ถูก Scan ไปแล้วใน Pallet ใหม่" });
+        return res
+          .status(400)
+          .send({ message: "WOS No นี้ถูก Scan ไปแล้ว ของ Pallet ใหม่" });
       }
 
+      const CheckBoxTacRepeat = await prisma.boxTAC.findFirst({
+        where: {
+          wosNo: wosNo,
+          status: "use",
+        },
+      });
+
+      if (CheckBoxTacRepeat) {
+        return res
+          .status(400)
+          .send({ message: "WOS No นี้ถูก Scan ไปแล้ว ของ Pallet เดิม" });
+      }
+
+      const boxIssueTemp = await prisma.boxTAC.create({
+        data: {
+          headerId: parseInt(headTempTacId),
+          itemNo: itemNo,
+          itemName: itemName,
+          wosNo: wosNo,
+          dwg: dwg,
+          dieNo: dieNo,
+          lotNo: lotNo,
+          qty: parseInt(qty),
+        },
+      });
+
+      return res.send({
+        message: "add_box_issue_temp_tac_success",
+        data: boxIssueTemp,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  mapFractionTac: async (req, res) => {
+    try {
+      const { headTempTacId, itemNo, itemName, wosNo, dwg, dieNo, lotNo, qty } =
+        req.body;
+
+      if (
+        headTempTacId == null ||
+        !itemNo ||
+        !itemName ||
+        !wosNo ||
+        !dwg ||
+        !dieNo ||
+        !lotNo ||
+        qty == null
+      ) {
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
+
+      const checkHeaderTempTAC = await prisma.headerIssueTempTAC.findFirst({
+        where: {
+          id: parseInt(headTempTacId),
+          status: "use",
+        },
+      });
+
+      if (!checkHeaderTempTAC) {
+        return res
+          .status(400)
+          .send({ message: "header_issueTempTac_notFound" });
+      }
+
+      const checkBoxByItemMaster = await prisma.partMaster.findFirst({
+        where: {
+          itemNo: itemNo,
+          status: "use",
+        },
+      });
+
+      if (!checkBoxByItemMaster) {
+        return res
+          .status(400)
+          .send({ message: "ไม่มี ItemNo และ ItemName นี้ในระบบ" });
+      }
+
+      //check in table box before scan receive temp
+      const checkBoxIssue = await prisma.box.findFirst({
+        where: {
+          wosNo: wosNo,
+          status: "use",
+        },
+      });
+      if (checkBoxIssue) {
+        return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
+      }
+
+      const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
+        where: {
+          wosNo: wosNo,
+          status: "use",
+        },
+      });
+
+      if (checkBoxRepeat) {
+        return res
+          .status(400)
+          .send({ message: "WOS No นี้ถูก Scan ไปแล้วใน Pallet ใหม่" });
+      }
 
       const checkBoxTacRepeat = await prisma.boxTAC.findFirst({
         where: {
@@ -11004,7 +10994,9 @@ module.exports = {
       });
 
       if (checkBoxTacRepeat) {
-        return res.status(400).send({ message: "WOS No นี้ถูก Scan ไปแล้วใน Pallet เดิม" });
+        return res
+          .status(400)
+          .send({ message: "WOS No นี้ถูก Scan ไปแล้วใน Pallet เดิม" });
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -11038,44 +11030,690 @@ module.exports = {
       return res.send({
         message: "map_fractionTac_success",
         data: result,
-      });       
-
-    }catch(e){
+      });
+    } catch (e) {
       return res.status(500).send({
         error: e.message,
       });
     }
   },
 
+  fetchHeaderTempTac: async (req, res) => {
+    try {
+      const { palletId, userId } = req.body || {};
 
-  fetchHeaderTempTac: async(req, res) =>{
-    try{
-      const {userId} = req.body;
+      const palletIdInt = Number(palletId);
+      const userIdInt = Number(userId);
 
-    }catch(e){
+      if (!Number.isInteger(palletIdInt) || palletIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_palletId",
+        });
+      }
+
+      if (!Number.isInteger(userIdInt) || userIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_userId",
+        });
+      }
+
+      const results = await prisma.headerIssueTempTAC.findMany({
+        where: {
+          palletId: palletIdInt,
+          userId: userIdInt,
+          status: "use",
+        },
+
+        orderBy: {
+          id: "asc",
+        },
+      });
+
+      return res.send({
+        message: "fetch_header_temp_tac_success",
+
+        count: results.length,
+
+        results: results,
+      });
+    } catch (e) {
       return res.status(500).send({
         error: e.message,
       });
     }
   },
 
+  fetchBoxTac: async (req, res) => {
+    try {
+      const { headTempTacId } = req.body;
 
-  fetchBoxTac: async(req,res) =>{
-    try{
-      const{ headTempTacId } = req.body;
-    }catch(e){
+      const results = await prisma.boxTAC.findMany({
+        where: {
+          headerId: parseInt(headTempTacId),
+          status: "use",
+        },
+
+        orderBy: {
+          id: "asc",
+        },
+      });
+
+      return res.send({
+        message: "fetch_box_temp_tac_success",
+        results: results,
+      });
+    } catch (e) {
       return res.status(500).send({
         error: e.message,
       });
     }
-  }
+  },
+
+  fetchBoxFractionTac: async (req, res) => {
+    try {
+      const { headTempTacId } = req.body || {};
+      const headTempTacIdInt = Number(headTempTacId);
+
+      if (!Number.isInteger(headTempTacIdInt) || headTempTacIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_headTempTacId",
+        });
+      }
+
+      const fractionMaps = await prisma.mapHeaderIssueFractionTAC.findMany({
+        where: {
+          headerId: headTempTacIdInt,
+
+          status: "use",
+        },
+
+        orderBy: {
+          id: "asc",
+        },
+
+        select: {
+          id: true,
+
+          headerId: true,
+
+          boxId: true,
+        },
+      });
+
+      if (fractionMaps.length === 0) {
+        return res.send({
+          message: "fetch_box_fraction_tac_success",
+
+          count: 0,
+
+          results: [],
+        });
+      }
+
+      const boxIds = [
+        ...new Set(
+          fractionMaps
+            .map((row) => Number(row.boxId))
+            .filter((id) => Number.isInteger(id) && id > 0)
+        ),
+      ];
+
+      const boxes = await prisma.boxTAC.findMany({
+        where: {
+          id: {
+            in: boxIds,
+          },
+
+          headerId: headTempTacIdInt,
+
+          status: "use",
+        },
+
+        orderBy: {
+          id: "asc",
+        },
+      });
+
+      return res.send({
+        message: "fetch_box_fraction_tac_success",
+
+        count: boxes.length,
+
+        results: boxes,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  deleteByBoxTacId: async (req, res) => {
+    try {
+      const { boxId } = req.body;
+
+      if (boxId == null) {
+        return res.status(400).send({ message: "missing_required_fields" });
+      }
+
+      const current = await prisma.boxTAC.findFirst({
+        where: { id: parseInt(boxId), status: "use" },
+        select: { id: true },
+      });
+
+      if (!current) {
+        return res.status(404).send({ message: "boxTempTac_not_found" });
+      }
+
+      const deleted = await prisma.boxTAC.delete({
+        where: {
+          id: parseInt(boxId),
+        },
+      });
+
+      return res.send({ message: "delete_box_tempTac_success", data: deleted });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  deleteAllBoxTac: async (req, res) => {
+    try {
+      const { headTacId } = req.body || {};
+
+      const headTacIdInt = Number(headTacId);
+
+      if (!Number.isInteger(headTacIdInt) || headTacIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_headTacId",
+        });
+      }
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const headerTac = await tx.headerIssueTempTAC.findUnique({
+            where: {
+              id: headTacIdInt,
+            },
+
+            select: {
+              id: true,
+
+              palletId: true,
+
+              itemNo: true,
+
+              itemName: true,
+            },
+          });
+
+          if (!headerTac) {
+            throw new Error("header_tac_not_found");
+          }
+
+          const fractionMaps = await tx.mapHeaderIssueFractionTAC.findMany({
+            where: {
+              headerId: headTacIdInt,
+
+              status: "use",
+            },
+
+            select: {
+              boxId: true,
+            },
+          });
+
+          const fractionBoxIds = [
+            ...new Set(
+              fractionMaps
+                .map((row) => Number(row.boxId))
+                .filter((id) => Number.isInteger(id) && id > 0)
+            ),
+          ];
+
+          const normalBoxes = await tx.boxTAC.findMany({
+            where: {
+              headerId: headTacIdInt,
+
+              status: "use",
+
+              ...(fractionBoxIds.length > 0
+                ? {
+                    id: {
+                      notIn: fractionBoxIds,
+                    },
+                  }
+                : {}),
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            select: {
+              id: true,
+            },
+          });
+
+          const normalBoxIds = normalBoxes
+            .map((row) => Number(row.id))
+            .filter((id) => Number.isInteger(id) && id > 0);
+
+          if (normalBoxIds.length === 0) {
+            return {
+              headTacId: headTacIdInt,
+
+              deletedBoxCount: 0,
+
+              deletedBoxIds: [],
+
+              fractionBoxIds: fractionBoxIds,
+            };
+          }
+
+          const deletedBoxes = await tx.boxTAC.deleteMany({
+            where: {
+              id: {
+                in: normalBoxIds,
+              },
+
+              headerId: headTacIdInt,
+            },
+          });
+
+          return {
+            headTacId: headTacIdInt,
+
+            deletedBoxCount: Number(deletedBoxes.count || 0),
+
+            deletedBoxIds: normalBoxIds,
+
+            fractionBoxIds: fractionBoxIds,
+          };
+        },
+
+        {
+          isolationLevel: "Serializable",
+
+          maxWait: 10000,
+
+          timeout: 120000,
+        }
+      );
+
+      return res.send({
+        message: "delete_all_box_tac_success",
+
+        data: result,
+      });
+    } catch (e) {
+      // HEADER TAC NOT FOUND
+      if (e.message === "header_tac_not_found") {
+        return res.status(404).send({
+          message: "header_tac_not_found",
+        });
+      }
+      // FOREIGN KEY ERROR
+      if (e.code === "P2003") {
+        return res.status(409).send({
+          message: "box_tac_is_still_in_use",
+
+          error: e.message,
+        });
+      }
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  deleteAllBoxFractionTacId: async (req, res) => {
+    try {
+      const { headTacId } = req.body || {};
+
+      const headTacIdInt = Number(headTacId);
+
+      if (!Number.isInteger(headTacIdInt) || headTacIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_headTacId",
+        });
+      }
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const headerTac = await tx.headerIssueTempTAC.findUnique({
+            where: {
+              id: headTacIdInt,
+            },
+
+            select: {
+              id: true,
+
+              palletId: true,
+
+              itemNo: true,
+
+              itemName: true,
+            },
+          });
+
+          if (!headerTac) {
+            throw new Error("header_tac_not_found");
+          }
+
+          const fractionMaps = await tx.mapHeaderIssueFractionTAC.findMany({
+            where: {
+              headerId: headTacIdInt,
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            select: {
+              id: true,
+
+              boxId: true,
+            },
+          });
+
+          if (fractionMaps.length === 0) {
+            return {
+              headTacId: headTacIdInt,
+
+              deletedMapCount: 0,
+
+              deletedBoxCount: 0,
+
+              deletedBoxIds: [],
+            };
+          }
+
+          const fractionBoxIds = [
+            ...new Set(
+              fractionMaps
+                .map((row) => Number(row.boxId))
+                .filter((id) => Number.isInteger(id) && id > 0)
+            ),
+          ];
+
+          const boxes = await tx.boxTAC.findMany({
+            where: {
+              headerId: headTacIdInt,
+
+              id: {
+                in: fractionBoxIds,
+              },
+            },
+
+            orderBy: {
+              id: "asc",
+            },
+
+            select: {
+              id: true,
+            },
+          });
+
+          const boxIdsToDelete = boxes
+            .map((row) => Number(row.id))
+            .filter((id) => Number.isInteger(id) && id > 0);
+
+          const deletedMaps = await tx.mapHeaderIssueFractionTAC.deleteMany({
+            where: {
+              headerId: headTacIdInt,
+            },
+          });
+
+          let deletedBoxCount = 0;
+
+          if (boxIdsToDelete.length > 0) {
+            const deletedBoxes = await tx.boxTAC.deleteMany({
+              where: {
+                headerId: headTacIdInt,
+
+                id: {
+                  in: boxIdsToDelete,
+                },
+              },
+            });
+
+            deletedBoxCount = Number(deletedBoxes.count || 0);
+          }
+
+          return {
+            headTacId: headTacIdInt,
+
+            deletedMapCount: Number(deletedMaps.count || 0),
+
+            deletedBoxCount: deletedBoxCount,
+
+            deletedBoxIds: boxIdsToDelete,
+          };
+        },
+
+        {
+          isolationLevel: "Serializable",
+
+          maxWait: 10000,
+
+          timeout: 120000,
+        }
+      );
+
+      return res.send({
+        message: "delete_all_box_fraction_tac_success",
+
+        data: result,
+      });
+    } catch (e) {
+      console.error("DELETE ALL BOX FRACTION TAC ERROR:", e);
+
+      if (e.message === "header_tac_not_found") {
+        return res.status(404).send({
+          message: "header_tac_not_found",
+        });
+      }
+
+      if (e.code === "P2003") {
+        return res.status(409).send({
+          message: "box_tac_is_still_in_use",
+
+          error: e.message,
+        });
+      }
+
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  editQtyBoxTac: async (req, res) => {
+    try {
+      const { headTacId, boxId, qty } = req.body;
+
+      if (headTacId == null || boxId == null || qty == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const headTempIdInt = parseInt(headTacId);
+      const boxTempIdInt = parseInt(boxId);
+      const qtyInt = parseInt(qty);
+
+      if (
+        Number.isNaN(headTempIdInt) ||
+        Number.isNaN(boxTempIdInt) ||
+        Number.isNaN(qtyInt)
+      ) {
+        return res.status(400).send({
+          message: "invalid_number_fields",
+        });
+      }
+
+      if (qtyInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_qty",
+        });
+      }
+
+      const checkBoxTacTemp = await prisma.boxTAC.findFirst({
+        where: {
+          id: boxTempIdInt,
+          headerId: headTempIdInt,
+          status: "use",
+        },
+      });
+
+      if (!checkBoxTacTemp) {
+        return res.status(400).send({
+          message: "box_tacTemp_notFound",
+        });
+      }
+
+      const update = await prisma.boxTAC.update({
+        where: {
+          id: boxTempIdInt,
+        },
+        data: {
+          qty: qtyInt,
+        },
+      });
+
+      return res.send({
+        message: "update_boxTacTemp_success",
+        data: update,
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  deleteHeaderTac: async (req, res) => {
+    try {
+      const { headTacId, userId } = req.body || {};
+      const headTacIdInt = Number(headTacId);
+      const userIdInt = Number(userId);
+
+      if (!Number.isInteger(headTacIdInt) || headTacIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_headTacId",
+        });
+      }
+
+      if (!Number.isInteger(userIdInt) || userIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_userId",
+        });
+      }
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+       
+          const headerTac = await tx.headerIssueTempTAC.findFirst({
+            where: {
+              id: headTacIdInt,
+
+              userId: userIdInt,
+            },
+
+            select: {
+              id: true,
+
+              palletId: true,
+
+              itemNo: true,
+
+              itemName: true,
+
+              userId: true,
+            },
+          });
+
+          if (!headerTac) {
+            throw new Error("header_tac_not_found");
+          }
+
+          const deletedMaps = await tx.mapHeaderIssueFractionTAC.deleteMany({
+            where: {
+              headerId: headTacIdInt,
+            },
+          });
+    
+          const deletedBoxes = await tx.boxTAC.deleteMany({
+            where: {
+              headerId: headTacIdInt,
+            },
+          });
+
+          const deletedHeader = await tx.headerIssueTempTAC.delete({
+            where: {
+              id: headTacIdInt,
+            },
+          });
+      
+          return {
+            headTacId: headTacIdInt,
+
+            userId: userIdInt,
+
+            palletId: headerTac.palletId,
+
+            itemNo: headerTac.itemNo,
+
+            itemName: headerTac.itemName,
+
+            deletedMapCount: Number(deletedMaps.count || 0),
+
+            deletedBoxCount: Number(deletedBoxes.count || 0),
+
+            deletedHeaderCount: deletedHeader ? 1 : 0,
+          };
+        },
+
+        {
+          isolationLevel: "Serializable",
+
+          maxWait: 10000,
+
+          timeout: 120000,
+        }
+      );
+
+      return res.send({
+        message: "delete_header_tac_success",
+
+        data: result,
+      });
+    } catch (e) {
+      console.error("DELETE HEADER TAC ERROR:", e);
+
+   
+
+      if (e.message === "header_tac_not_found") {
+        return res.status(404).send({
+          message: "header_tac_not_found",
+        });
+      }
 
 
+      if (e.code === "P2003") {
+        return res.status(409).send({
+          message: "header_tac_is_still_in_use",
 
+          error: e.message,
+        });
+      }
 
-
-
-
-
-
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
 };
