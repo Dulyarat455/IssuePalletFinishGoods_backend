@@ -87,10 +87,17 @@ app.get('/api/issue/listPallet',(req, res) => issueController.listPallet(req,res
 app.post('/api/issue/listPalletById',(req, res) => issueController.listPalletById(req,res));
 
 app.post('/api/issue/deleteHeaderBoxInPallet',(req, res) => issueController.deleteHeaderBoxInPallet(req,res));
-
-
-
-
+app.post('/api/issue/addHeaderInPallet',(req, res) => issueController.addHeaderInPallet(req,res));
+app.post('/api/issue/addBoxInpallet',(req, res) => issueController.addBoxInpallet(req,res));
+app.post('/api/issue/mapFractionTac',(req, res) => issueController.mapFractionTac(req,res));
+app.post('/api/issue/fetchHeaderTempTac',(req, res) => issueController.fetchHeaderTempTac(req,res));
+app.post('/api/issue/fetchBoxTac',(req, res) => issueController.fetchBoxTac(req,res));
+app.post('/api/issue/fetchBoxFractionTac',(req, res) => issueController.fetchBoxFractionTac(req,res));
+app.post('/api/issue/deleteByBoxTacId',(req, res) => issueController.deleteByBoxTacId(req,res));
+app.post('/api/issue/deleteAllBoxTac',(req, res) => issueController.deleteAllBoxTac(req,res));
+app.post('/api/issue/deleteAllBoxFractionTacId',(req, res) => issueController.deleteAllBoxFractionTacId(req,res));
+app.post('/api/issue/editQtyBoxTac',(req, res) => issueController.editQtyBoxTac(req,res));
+app.post('/api/issue/deleteHeaderTac',(req, res) => issueController.deleteHeaderTac(req,res));
 
 
 app.listen(3001, () => {
