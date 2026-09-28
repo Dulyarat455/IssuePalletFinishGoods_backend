@@ -10782,43 +10782,46 @@ module.exports = {
         itemName,
         groupId,
         controlLot,
-        totalBox,
         moveMentThreeMonth,
         normalQty,
+        fractionQty,
         userId,
       } = req.body;
-
+  
       if (
         userId == null ||
         groupId == null ||
-        totalBox == null ||
         normalQty == null ||
+        fractionQty == null ||
         palletId == null ||
         !itemNo ||
         !itemName ||
         !moveMentThreeMonth
       ) {
-        return res.status(400).send({ message: "missing_required_fields" });
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
       }
-
+  
       const headerIssueTemp = await prisma.headerIssueTempTAC.create({
         data: {
-          palletId: parseInt(palletId),
+          palletId: Number(palletId),
           itemNo: itemNo,
           itemName: itemName,
-          groupId: parseInt(groupId),
-          controlLot: controlLot,
-          normalQty: parseInt(normalQty),
-          totalBox: parseInt(totalBox),
+          groupId: Number(groupId),
+          controlLot: String(controlLot || ""),
+          normalQty: Number(normalQty),
+          fractionQty: Number(fractionQty),
           moveMentThreeMonth: moveMentThreeMonth,
-          userId: parseInt(userId),
+          userId: Number(userId),
         },
       });
-
+  
       return res.send({
         message: "add_issue_header_temp_success",
         data: headerIssueTemp,
       });
+  
     } catch (e) {
       return res.status(500).send({
         error: e.message,
@@ -11692,16 +11695,11 @@ module.exports = {
         data: result,
       });
     } catch (e) {
-      console.error("DELETE HEADER TAC ERROR:", e);
-
-   
-
       if (e.message === "header_tac_not_found") {
         return res.status(404).send({
           message: "header_tac_not_found",
         });
       }
-
 
       if (e.code === "P2003") {
         return res.status(409).send({
