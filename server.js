@@ -99,6 +99,12 @@ app.post('/api/issue/deleteAllBoxFractionTacId',(req, res) => issueController.de
 app.post('/api/issue/editQtyBoxTac',(req, res) => issueController.editQtyBoxTac(req,res));
 app.post('/api/issue/deleteHeaderTac',(req, res) => issueController.deleteHeaderTac(req,res));
 
+app.post('/api/issue/deleteboxfractionTac',(req, res) => issueController.deleteboxfractionTac(req,res));
+
+
+
+
+
 
 app.listen(3001, () => {
     console.log("API Server Running...");

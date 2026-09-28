@@ -10787,7 +10787,7 @@ module.exports = {
         fractionQty,
         userId,
       } = req.body;
-  
+
       if (
         userId == null ||
         groupId == null ||
@@ -10802,7 +10802,7 @@ module.exports = {
           message: "missing_required_fields",
         });
       }
-  
+
       const headerIssueTemp = await prisma.headerIssueTempTAC.create({
         data: {
           palletId: Number(palletId),
@@ -10816,12 +10816,11 @@ module.exports = {
           userId: Number(userId),
         },
       });
-  
+
       return res.send({
         message: "add_issue_header_temp_success",
         data: headerIssueTemp,
       });
-  
     } catch (e) {
       return res.status(500).send({
         error: e.message,
@@ -11618,7 +11617,6 @@ module.exports = {
 
       const result = await prisma.$transaction(
         async (tx) => {
-       
           const headerTac = await tx.headerIssueTempTAC.findFirst({
             where: {
               id: headTacIdInt,
@@ -11648,7 +11646,7 @@ module.exports = {
               headerId: headTacIdInt,
             },
           });
-    
+
           const deletedBoxes = await tx.boxTAC.deleteMany({
             where: {
               headerId: headTacIdInt,
@@ -11660,7 +11658,7 @@ module.exports = {
               id: headTacIdInt,
             },
           });
-      
+
           return {
             headTacId: headTacIdInt,
 
@@ -11709,6 +11707,93 @@ module.exports = {
         });
       }
 
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  deleteboxfractionTac: async (req, res) => {
+    try {
+      const { boxId } = req.body;
+
+      if (boxId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const boxIdInt = Number(boxId);
+
+      if (!Number.isInteger(boxIdInt) || boxIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_boxId",
+        });
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        // CHECK BOX
+        const box = await tx.boxTAC.findUnique({
+          where: {
+            id: boxIdInt,
+          },
+
+          select: {
+            id: true,
+
+            headerId: true,
+          },
+        });
+
+        if (!box) {
+          throw new Error("box_tac_not_found");
+        }
+
+        // DELETE FRACTION MAP FIRST
+        const deleteMapBox = await tx.mapHeaderIssueFractionTAC.deleteMany({
+          where: {
+            boxId: boxIdInt,
+          },
+        });
+        // DELETE BOX TAC
+        const deleteBox = await tx.boxTAC.delete({
+          where: {
+            id: boxIdInt,
+          },
+        });
+
+        return {
+          boxId: boxIdInt,
+
+          headerId: box.headerId,
+
+          deletedMapCount: Number(deleteMapBox.count || 0),
+
+          deleteBox: deleteBox,
+        };
+      });
+
+      return res.send({
+        message: "delete_boxFraction_tac_success",
+
+        data: result,
+      });
+    } catch (e) {
+      if (e.message === "box_tac_not_found") {
+        return res.status(404).send({
+          message: "box_tac_not_found",
+        });
+      }
+
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  },
+
+  saveNewHeaderTac: async (req, res) => {
+    try {
+    } catch (e) {
       return res.status(500).send({
         error: e.message,
       });
