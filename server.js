@@ -100,10 +100,10 @@ app.post('/api/issue/editQtyBoxTac',(req, res) => issueController.editQtyBoxTac(
 app.post('/api/issue/deleteHeaderTac',(req, res) => issueController.deleteHeaderTac(req,res));
 
 app.post('/api/issue/deleteboxfractionTac',(req, res) => issueController.deleteboxfractionTac(req,res));
+app.post('/api/issue/editHeaderTac',(req, res) => issueController.editHeaderTac(req,res));
 
-
-
-
+app.post('/api/issue/saveNewHeaderTac',(req, res) => issueController.saveNewHeaderTac(req,res));
+app.post('/api/issue/deletePallet',(req, res) => issueController.deletePallet(req,res));
 
 
 app.listen(3001, () => {

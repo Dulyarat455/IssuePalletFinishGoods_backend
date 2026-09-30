@@ -120,6 +120,7 @@ model Pallet {
   userId Int
   closedState String?  
   timeStmp DateTime @default(now())
+  status String @default("use")
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   MapAreaRack MapAreaRack @relation(fields: [mapAreaRackId], references: [id], onDelete: NoAction, onUpdate: NoAction )
   HeaderIssue HeaderIssue[]
