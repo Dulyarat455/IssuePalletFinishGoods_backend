@@ -12469,7 +12469,6 @@ module.exports = {
 
       const CHUNK_SIZE = 500;
 
-      // VALIDATE
       if (palletId == null) {
         return res.status(400).send({
           message: "missing_required_fields",
@@ -12484,7 +12483,6 @@ module.exports = {
         });
       }
 
-      // CHECK PALLET
       const checkPallet = await prisma.pallet.findUnique({
         where: {
           id: palletIdInt,
@@ -12492,7 +12490,9 @@ module.exports = {
 
         select: {
           id: true,
+
           palletNoId: true,
+
           status: true,
         },
       });
@@ -12503,26 +12503,52 @@ module.exports = {
         });
       }
 
-      // TRANSACTION
       const result = await prisma.$transaction(
         async (tx) => {
+          // =================================================
           // SUMMARY
+          // =================================================
 
           let deletedHeaderCount = 0;
+
           let deletedBoxCount = 0;
+
           let deletedFractionMapCount = 0;
 
-          let deletedHeaderClosedTempCount = 0;
-          let deletedHeaderBoxClosedCount = 0;
-
           let deletedTacHeaderCount = 0;
+
           let deletedTacBoxCount = 0;
+
           let deletedTacFractionMapCount = 0;
 
-          // 1. GET HEADER ISSUE IDS
-          const headerIds = [];
+          let deletedHeaderClosedTempCount = 0;
 
-          let lastHeaderId = 0;
+          let deletedHeaderBoxClosedCount = 0;
+
+          // #################################################
+          //
+          // PART 1
+          // REAL PALLET DATA
+          //
+          // Pallet
+          //   ↓
+          // HeaderIssue
+          //   ↓
+          // MapHeaderIssueFraction
+          //   ↓
+          // Box
+          //   ↓
+          // HeaderIssue
+          //
+          // #################################################
+
+          // =================================================
+          // 1. SEARCH HEADER ISSUE BY PALLET ID
+          // =================================================
+
+          const headIds = [];
+
+          let lastHeadId = 0;
 
           while (true) {
             const headerChunk = await tx.headerIssue.findMany({
@@ -12530,7 +12556,7 @@ module.exports = {
                 palletId: palletIdInt,
 
                 id: {
-                  gt: lastHeaderId,
+                  gt: lastHeadId,
                 },
               },
 
@@ -12550,17 +12576,123 @@ module.exports = {
             }
 
             for (const header of headerChunk) {
-              headerIds.push(Number(header.id));
+              headIds.push(Number(header.id));
             }
 
-            lastHeaderId = Number(headerChunk[headerChunk.length - 1].id);
+            lastHeadId = Number(headerChunk[headerChunk.length - 1].id);
           }
 
-          // 2. PROCESS HEADER CHUNK
-          for (let i = 0; i < headerIds.length; i += CHUNK_SIZE) {
-            const headerIdChunk = headerIds.slice(i, i + CHUNK_SIZE);
+          // 2. PROCESS REAL HEADER ทีละ CHUNK
 
-            // GET BOX IDS
+          for (let i = 0; i < headIds.length; i += CHUNK_SIZE) {
+            const headIdChunk = headIds.slice(i, i + CHUNK_SIZE);
+
+            // 2.1 SEARCH FRACTION MAP
+            // เก็บ boxId ที่เป็น Box เศษไว้
+            const fractionBoxIds = [];
+
+            let lastFractionMapId = 0;
+
+            while (true) {
+              const fractionMapChunk = await tx.mapHeaderIssueFraction.findMany(
+                {
+                  where: {
+                    headerId: {
+                      in: headIdChunk,
+                    },
+
+                    id: {
+                      gt: lastFractionMapId,
+                    },
+                  },
+
+                  orderBy: {
+                    id: "asc",
+                  },
+
+                  take: CHUNK_SIZE,
+
+                  select: {
+                    id: true,
+
+                    headerId: true,
+
+                    boxId: true,
+                  },
+                }
+              );
+
+              if (fractionMapChunk.length === 0) {
+                break;
+              }
+
+              for (const map of fractionMapChunk) {
+                fractionBoxIds.push(Number(map.boxId));
+              }
+
+              lastFractionMapId = Number(
+                fractionMapChunk[fractionMapChunk.length - 1].id
+              );
+            }
+
+            // 2.2 DELETE CLOSED TABLE
+            // จำเป็นเพราะ FK เป็น NoAction
+
+            const deleteHeaderBoxClosed = await tx.headerBoxClosed.deleteMany({
+              where: {
+                OR: [
+                  {
+                    palletId: palletIdInt,
+                  },
+
+                  {
+                    headId: {
+                      in: headIdChunk,
+                    },
+                  },
+                ],
+              },
+            });
+
+            deletedHeaderBoxClosedCount += Number(
+              deleteHeaderBoxClosed.count || 0
+            );
+
+            const deleteHeaderClosedTemp = await tx.headerClosedTemp.deleteMany(
+              {
+                where: {
+                  OR: [
+                    {
+                      palletId: palletIdInt,
+                    },
+
+                    {
+                      headId: {
+                        in: headIdChunk,
+                      },
+                    },
+                  ],
+                },
+              }
+            );
+
+            deletedHeaderClosedTempCount += Number(
+              deleteHeaderClosedTemp.count || 0
+            );
+
+            // 2.3 DELETE FRACTION MAP
+            const deleteFractionMap =
+              await tx.mapHeaderIssueFraction.deleteMany({
+                where: {
+                  headerId: {
+                    in: headIdChunk,
+                  },
+                },
+              });
+
+            deletedFractionMapCount += Number(deleteFractionMap.count || 0);
+
+            // 2.4 SEARCH BOX BY HEADER ID
             const boxIds = [];
 
             let lastBoxId = 0;
@@ -12569,7 +12701,7 @@ module.exports = {
               const boxChunk = await tx.box.findMany({
                 where: {
                   headerId: {
-                    in: headerIdChunk,
+                    in: headIdChunk,
                   },
 
                   id: {
@@ -12601,94 +12733,31 @@ module.exports = {
               lastBoxId = Number(boxChunk[boxChunk.length - 1].id);
             }
 
-            // 3. DELETE HEADER BOX CLOSED
-            // ต้องลบก่อน Box / Header / Pallet
+            // 2.5 DELETE BOX
+            for (
+              let boxIndex = 0;
+              boxIndex < boxIds.length;
+              boxIndex += CHUNK_SIZE
+            ) {
+              const boxIdChunk = boxIds.slice(boxIndex, boxIndex + CHUNK_SIZE);
 
-            const deleteHeaderBoxClosed = await tx.headerBoxClosed.deleteMany({
-              where: {
-                OR: [
-                  {
-                    headId: {
-                      in: headerIdChunk,
-                    },
-                  },
-                  {
-                    palletId: palletIdInt,
-                  },
-                ],
-              },
-            });
-
-            deletedHeaderBoxClosedCount += Number(
-              deleteHeaderBoxClosed.count || 0
-            );
-
-            // 4. DELETE HEADER CLOSED TEMP
-            const deleteHeaderClosedTemp = await tx.headerClosedTemp.deleteMany(
-              {
+              const deleteBoxes = await tx.box.deleteMany({
                 where: {
-                  OR: [
-                    {
-                      headId: {
-                        in: headerIdChunk,
-                      },
-                    },
-                    {
-                      palletId: palletIdInt,
-                    },
-                  ],
-                },
-              }
-            );
-
-            deletedHeaderClosedTempCount += Number(
-              deleteHeaderClosedTemp.count || 0
-            );
-
-            // 5. DELETE FRACTION MAP
-            // MapHeaderIssueFraction
-
-            const deleteFractionMap =
-              await tx.mapHeaderIssueFraction.deleteMany({
-                where: {
-                  headerId: {
-                    in: headerIdChunk,
+                  id: {
+                    in: boxIdChunk,
                   },
                 },
               });
 
-            deletedFractionMapCount += Number(deleteFractionMap.count || 0);
-
-            // 6. DELETE BOX
-
-            if (boxIds.length > 0) {
-              for (
-                let boxIndex = 0;
-                boxIndex < boxIds.length;
-                boxIndex += CHUNK_SIZE
-              ) {
-                const boxIdChunk = boxIds.slice(
-                  boxIndex,
-                  boxIndex + CHUNK_SIZE
-                );
-
-                const deleteBoxes = await tx.box.deleteMany({
-                  where: {
-                    id: {
-                      in: boxIdChunk,
-                    },
-                  },
-                });
-
-                deletedBoxCount += Number(deleteBoxes.count || 0);
-              }
+              deletedBoxCount += Number(deleteBoxes.count || 0);
             }
 
-            // 7. DELETE HEADER ISSUE
+            // 2.6 DELETE HEADER ISSUE
+
             const deleteHeaders = await tx.headerIssue.deleteMany({
               where: {
                 id: {
-                  in: headerIdChunk,
+                  in: headIdChunk,
                 },
 
                 palletId: palletIdInt,
@@ -12697,14 +12766,31 @@ module.exports = {
 
             deletedHeaderCount += Number(deleteHeaders.count || 0);
           }
-          // 8. CLEANUP TAC
-          // HeaderIssueTempTAC ไม่มี relation กับ Pallet
-          // แต่มี palletId อยู่
-          // ถ้าไม่ลบจะกลายเป็น orphan data
 
-          const tacHeaderIds = [];
+          // #################################################
+          //
+          // PART 2
+          // TAC DATA
+          //
+          // palletId
+          //   ↓
+          // HeaderIssueTempTAC
+          //   ↓
+          // MapHeaderIssueFractionTAC
+          //   ↓
+          // BoxTAC
+          //   ↓
+          // HeaderIssueTempTAC
+          //
+          // #################################################
 
-          let lastTacHeaderId = 0;
+          // =================================================
+          // 3. SEARCH HEADER TAC BY PALLET ID
+          // =================================================
+
+          const headTacIds = [];
+
+          let lastHeadTacId = 0;
 
           while (true) {
             const tacHeaderChunk = await tx.headerIssueTempTAC.findMany({
@@ -12712,7 +12798,7 @@ module.exports = {
                 palletId: palletIdInt,
 
                 id: {
-                  gt: lastTacHeaderId,
+                  gt: lastHeadTacId,
                 },
               },
 
@@ -12731,31 +12817,69 @@ module.exports = {
               break;
             }
 
-            for (const tacHeader of tacHeaderChunk) {
-              tacHeaderIds.push(Number(tacHeader.id));
+            for (const headerTac of tacHeaderChunk) {
+              headTacIds.push(Number(headerTac.id));
             }
 
-            lastTacHeaderId = Number(
+            lastHeadTacId = Number(
               tacHeaderChunk[tacHeaderChunk.length - 1].id
             );
           }
 
-          // =================================================
-          // DELETE TAC CHILD -> PARENT
-          // =================================================
+          // 4. PROCESS TAC HEADER
+          for (let i = 0; i < headTacIds.length; i += CHUNK_SIZE) {
+            const headTacIdChunk = headTacIds.slice(i, i + CHUNK_SIZE);
 
-          for (let i = 0; i < tacHeaderIds.length; i += CHUNK_SIZE) {
-            const tacHeaderIdChunk = tacHeaderIds.slice(i, i + CHUNK_SIZE);
+            // 4.1 SEARCH MAP FRACTION TAC
+            // เก็บ boxTacId ที่เป็น Box เศษ
+            const fractionTacBoxIds = [];
 
-            // -----------------------------------------------
-            // FRACTION MAP TAC
-            // -----------------------------------------------
+            let lastTacMapId = 0;
 
+            while (true) {
+              const tacMapChunk = await tx.mapHeaderIssueFractionTAC.findMany({
+                where: {
+                  headerId: {
+                    in: headTacIdChunk,
+                  },
+
+                  id: {
+                    gt: lastTacMapId,
+                  },
+                },
+
+                orderBy: {
+                  id: "asc",
+                },
+
+                take: CHUNK_SIZE,
+
+                select: {
+                  id: true,
+
+                  headerId: true,
+
+                  boxId: true,
+                },
+              });
+
+              if (tacMapChunk.length === 0) {
+                break;
+              }
+
+              for (const tacMap of tacMapChunk) {
+                fractionTacBoxIds.push(Number(tacMap.boxId));
+              }
+
+              lastTacMapId = Number(tacMapChunk[tacMapChunk.length - 1].id);
+            }
+
+            // 4.2 DELETE FRACTION MAP TAC
             const deleteTacFractionMap =
               await tx.mapHeaderIssueFractionTAC.deleteMany({
                 where: {
                   headerId: {
-                    in: tacHeaderIdChunk,
+                    in: headTacIdChunk,
                   },
                 },
               });
@@ -12764,28 +12888,74 @@ module.exports = {
               deleteTacFractionMap.count || 0
             );
 
-            // -----------------------------------------------
-            // BOX TAC
-            // -----------------------------------------------
+            // 4.3 SEARCH BOX TAC
+            const boxTacIds = [];
 
-            const deleteTacBox = await tx.boxTAC.deleteMany({
-              where: {
-                headerId: {
-                  in: tacHeaderIdChunk,
+            let lastBoxTacId = 0;
+
+            while (true) {
+              const boxTacChunk = await tx.boxTAC.findMany({
+                where: {
+                  headerId: {
+                    in: headTacIdChunk,
+                  },
+
+                  id: {
+                    gt: lastBoxTacId,
+                  },
                 },
-              },
-            });
 
-            deletedTacBoxCount += Number(deleteTacBox.count || 0);
+                orderBy: {
+                  id: "asc",
+                },
 
-            // -----------------------------------------------
-            // HEADER TAC
-            // -----------------------------------------------
+                take: CHUNK_SIZE,
 
+                select: {
+                  id: true,
+
+                  headerId: true,
+                },
+              });
+
+              if (boxTacChunk.length === 0) {
+                break;
+              }
+
+              for (const boxTac of boxTacChunk) {
+                boxTacIds.push(Number(boxTac.id));
+              }
+
+              lastBoxTacId = Number(boxTacChunk[boxTacChunk.length - 1].id);
+            }
+
+            // 4.4 DELETE BOX TAC
+            for (
+              let boxIndex = 0;
+              boxIndex < boxTacIds.length;
+              boxIndex += CHUNK_SIZE
+            ) {
+              const boxTacIdChunk = boxTacIds.slice(
+                boxIndex,
+                boxIndex + CHUNK_SIZE
+              );
+
+              const deleteBoxTac = await tx.boxTAC.deleteMany({
+                where: {
+                  id: {
+                    in: boxTacIdChunk,
+                  },
+                },
+              });
+
+              deletedTacBoxCount += Number(deleteBoxTac.count || 0);
+            }
+
+            // 4.5 DELETE HEADER TAC
             const deleteTacHeader = await tx.headerIssueTempTAC.deleteMany({
               where: {
                 id: {
-                  in: tacHeaderIdChunk,
+                  in: headTacIdChunk,
                 },
 
                 palletId: palletIdInt,
@@ -12794,11 +12964,9 @@ module.exports = {
 
             deletedTacHeaderCount += Number(deleteTacHeader.count || 0);
           }
-       
-          // 9. SAFETY CLEANUP CLOSED TABL
-          // เผื่อ Pallet ไม่มี Header แล้ว
-          // แต่ยังมี record ที่ map palletId
-      
+
+          // 5. SAFETY CLEANUP CLOSED TABLE
+          // เผื่อไม่มี HeaderIssue แต่มี Closed record
           const remainingHeaderClosedTemp =
             await tx.headerClosedTemp.deleteMany({
               where: {
@@ -12819,8 +12987,9 @@ module.exports = {
           deletedHeaderBoxClosedCount += Number(
             remainingHeaderBoxClosed.count || 0
           );
-          // 10. DELETE PALLET
 
+          // 6. DELETE PALLET
+          // ต้องเป็นตัวสุดท้าย
           const deletedPallet = await tx.pallet.delete({
             where: {
               id: palletIdInt,
@@ -12838,21 +13007,24 @@ module.exports = {
 
             palletNoId: deletedPallet.palletNoId,
 
+            // REAL
             deletedHeaderCount: deletedHeaderCount,
 
             deletedBoxCount: deletedBoxCount,
 
             deletedFractionMapCount: deletedFractionMapCount,
 
-            deletedHeaderClosedTempCount: deletedHeaderClosedTempCount,
-
-            deletedHeaderBoxClosedCount: deletedHeaderBoxClosedCount,
-
+            // TAC
             deletedTacHeaderCount: deletedTacHeaderCount,
 
             deletedTacBoxCount: deletedTacBoxCount,
 
             deletedTacFractionMapCount: deletedTacFractionMapCount,
+
+            // CLOSED
+            deletedHeaderClosedTempCount: deletedHeaderClosedTempCount,
+
+            deletedHeaderBoxClosedCount: deletedHeaderBoxClosedCount,
           };
         },
 
@@ -12871,8 +13043,6 @@ module.exports = {
         data: result,
       });
     } catch (e) {
-      console.error("DELETE PALLET ERROR:", e);
-
       return res.status(500).send({
         error: e.message,
       });
