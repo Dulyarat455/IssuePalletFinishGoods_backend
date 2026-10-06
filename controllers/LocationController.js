@@ -1376,7 +1376,7 @@ module.exports = {
         async (tx) => {
           // #################################################
           //
-          // 1. CHECK PALLET ที่ต้องการย้าย
+          // 1. CHECK PALLET
           //
           // #################################################
 
@@ -1406,6 +1406,9 @@ module.exports = {
           //
           // 2. CHECK DESTINATION MAP AREA RACK
           //
+          // ดึง Rack / Area มาด้วย
+          // เพื่อดูว่าเป็น PENDING หรือไม่
+          //
           // #################################################
 
           const destination = await tx.mapAreaRack.findFirst({
@@ -1423,6 +1426,26 @@ module.exports = {
               areaId: true,
 
               status: true,
+
+              Rack: {
+                select: {
+                  id: true,
+
+                  name: true,
+
+                  status: true,
+                },
+              },
+
+              Area: {
+                select: {
+                  id: true,
+
+                  name: true,
+
+                  status: true,
+                },
+              },
             },
           });
 
@@ -1434,8 +1457,6 @@ module.exports = {
           //
           // 3. CHECK SAME LOCATION
           //
-          // pallet อยู่ Area นี้อยู่แล้ว
-          //
           // #################################################
 
           if (Number(pallet.mapAreaRackId) === mapAreaRackIdInt) {
@@ -1444,44 +1465,72 @@ module.exports = {
 
           // #################################################
           //
-          // 4. CHECK AREA OCCUPIED
+          // 4. CHECK PENDING
           //
-          // ดูว่ามี Pallet อื่นจอง Area นี้หรือยัง
+          // รองรับทั้งกรณีชื่อ Rack = Pending
+          // และ Area = Pending
           //
           // #################################################
 
-          const occupiedPallet = await tx.pallet.findFirst({
-            where: {
-              mapAreaRackId: mapAreaRackIdInt,
+          const rackName = String(destination.Rack?.name || "")
+            .trim()
+            .toUpperCase();
 
-              status: "use",
+          const areaName = String(destination.Area?.name || "")
+            .trim()
+            .toUpperCase();
 
-              // กันกรณีตัวเอง
-              id: {
-                not: palletIdInt,
+          const isPendingDestination =
+            rackName === "PENDING" || areaName === "PENDING";
+
+          // #################################################
+          //
+          // 5. CHECK AREA OCCUPIED
+          //
+          // NORMAL LOCATION:
+          //   มี pallet แล้ว -> block
+          //
+          // PENDING:
+          //   ไม่ check occupied
+          //   มี pallet กี่ตัวก็ move เข้าได้
+          //
+          // #################################################
+
+          let occupiedPallet = null;
+
+          if (!isPendingDestination) {
+            occupiedPallet = await tx.pallet.findFirst({
+              where: {
+                mapAreaRackId: mapAreaRackIdInt,
+
+                status: "use",
+
+                id: {
+                  not: palletIdInt,
+                },
               },
-            },
 
-            select: {
-              id: true,
+              select: {
+                id: true,
 
-              palletNoId: true,
+                palletNoId: true,
 
-              mapAreaRackId: true,
-            },
-          });
+                mapAreaRackId: true,
+              },
+            });
 
-          if (occupiedPallet) {
-            const error = new Error("area_already_occupied");
+            if (occupiedPallet) {
+              const error = new Error("area_already_occupied");
 
-            error.occupiedPallet = occupiedPallet;
+              error.occupiedPallet = occupiedPallet;
 
-            throw error;
+              throw error;
+            }
           }
 
           // #################################################
           //
-          // 5. UPDATE PALLET LOCATION
+          // 6. UPDATE PALLET LOCATION
           //
           // #################################################
 
@@ -1523,6 +1572,20 @@ module.exports = {
             oldMapAreaRackId: oldMapAreaRackId,
 
             newMapAreaRackId: updatedPallet.mapAreaRackId,
+
+            destination: {
+              mapAreaRackId: destination.id,
+
+              rackId: destination.rackId,
+
+              rackName: destination.Rack?.name || "",
+
+              areaId: destination.areaId,
+
+              areaName: destination.Area?.name || "",
+
+              isPending: isPendingDestination,
+            },
 
             pallet: updatedPallet,
           };

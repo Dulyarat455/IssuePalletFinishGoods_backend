@@ -47,7 +47,7 @@ app.get('/api/location/list',(req,res) => locationController.list(req,res))
 app.get('/api/location/mapLocationPallet',(req,res) => locationController.mapLocationPallet(req,res))
 app.get('/api/location/mapLocationPalletBox',(req,res) => locationController.mapLocationPalletBox(req,res))
 
-app.get('/api/location/movePallet',(req,res) => locationController.movePallet(req,res))
+app.post('/api/location/movePallet',(req,res) => locationController.movePallet(req,res))
 
 
 //controlLot

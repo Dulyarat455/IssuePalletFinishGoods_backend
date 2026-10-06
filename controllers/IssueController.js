@@ -12463,6 +12463,9 @@ module.exports = {
     }
   },
 
+
+
+  //admin hard delete 
   deletePallet: async (req, res) => {
     try {
       const { palletId } = req.body;
@@ -13048,4 +13051,19 @@ module.exports = {
       });
     }
   },
+
+  closedPallet: async(req,res) =>{
+    try{
+      const { palletId } = req.body;
+      
+
+    }catch(e){
+      return res.status(500).send({
+        error: e.message,
+      });
+    }
+  }
 };
+
+
+

@@ -163,6 +163,7 @@ model HeaderIssue {
   controlLot String
   moveMentThreeMonth String
   userId Int
+  closedState String?  
   timeStmp DateTime @default(now())
   status String @default("use")
   MapHeaderIssueFraction MapHeaderIssueFraction[]
