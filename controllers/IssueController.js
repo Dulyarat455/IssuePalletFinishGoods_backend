@@ -547,14 +547,31 @@ module.exports = {
       }
 
       //check in table box before scan receive temp
-      const checkBoxIssue = await prisma.box.findFirst({
+      const latestBoxIssue = await prisma.box.findFirst({
         where: {
           wosNo: wosNo,
           status: "use",
         },
+
+        orderBy: {
+          id: "desc",
+        },
       });
-      if (checkBoxIssue) {
-        return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
+
+      if (latestBoxIssue) {
+        const checkLatestBoxClosed = await prisma.headerBoxClosed.findFirst({
+          where: {
+            boxId: latestBoxIssue.id,
+
+            status: "use",
+          },
+        });
+
+        if (!checkLatestBoxClosed) {
+          return res.status(400).send({
+            message: "WOS No นี้ยังอยู่ในระบบ",
+          });
+        }
       }
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
@@ -827,14 +844,31 @@ module.exports = {
       }
 
       //check in table box before scan receive temp
-      const checkBoxIssue = await prisma.box.findFirst({
+      const latestBoxIssue = await prisma.box.findFirst({
         where: {
           wosNo: wosNo,
           status: "use",
         },
+
+        orderBy: {
+          id: "desc",
+        },
       });
-      if (checkBoxIssue) {
-        return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
+
+      if (latestBoxIssue) {
+        const checkLatestBoxClosed = await prisma.headerBoxClosed.findFirst({
+          where: {
+            boxId: latestBoxIssue.id,
+
+            status: "use",
+          },
+        });
+
+        if (!checkLatestBoxClosed) {
+          return res.status(400).send({
+            message: "WOS No นี้ยังอยู่ในระบบ",
+          });
+        }
       }
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
@@ -8700,22 +8734,37 @@ module.exports = {
           // =================================================
           // 1.3 CHECK AREA OCCUPIED
           //
-          // ไม่ต้อง Check ถ้าเป็น Pending
+          // PENDING = EXCEPTION
           //
-          // Pallet ถือว่ายัง Active ถ้า:
+          // ถ้าเป็น Pending:
+          // - ไม่ต้อง Check Occupied
+          // - มี Pallet กี่ตัวก็สามารถใส่เพิ่มได้
+          //
+          // NORMAL LOCATION:
+          //
+          // closedState = "closed"
+          // = Pallet ออกจาก Location ไปแล้ว
+          // = ไม่นับว่า Occupied
           //
           // closedState = null
-          //
-          // หรือ
-          //
-          // closedState != complete
-          //
+          // หรือค่าอื่นที่ไม่ใช่ "closed"
+          // = Pallet ยัง Active
+          // = Location ถูกใช้งานอยู่
           // =================================================
 
           if (!isPendingLocation) {
             const occupiedPallet = await tx.pallet.findFirst({
               where: {
                 mapAreaRackId: Number(palletTemp.mapAreaRackId),
+
+                status: "use",
+
+                // ===========================================
+                // ACTIVE PALLET ONLY
+                //
+                // closedState = "closed"
+                // จะไม่ถูก Query มา
+                // ===========================================
 
                 OR: [
                   {
@@ -8724,11 +8773,16 @@ module.exports = {
 
                   {
                     closedState: {
-                      not: "complete",
+                      not: "closed",
                     },
                   },
                 ],
               },
+
+              // =============================================
+              // ถ้ามีหลาย Record
+              // ยึด Pallet ล่าสุดก่อน
+              // =============================================
 
               orderBy: {
                 id: "desc",
@@ -8742,8 +8796,15 @@ module.exports = {
                 mapAreaRackId: true,
 
                 closedState: true,
+
+                status: true,
               },
             });
+
+            // =================================================
+            // เจอ Active Pallet
+            // = Location ยังถูกใช้งาน
+            // =================================================
 
             if (occupiedPallet) {
               const error = new Error("area_already_occupied");
@@ -9507,6 +9568,28 @@ module.exports = {
             id: {
               gt: lastPalletId,
             },
+
+            status: "use",
+
+            // =================================================
+            // CLOSED PALLET
+            //
+            // ถ้า closedState = "closed"
+            // ถือว่า Pallet นี้ไม่ Active แล้ว
+            // ไม่ต้องเอามาใน List
+            // =================================================
+
+            OR: [
+              {
+                closedState: null,
+              },
+
+              {
+                closedState: {
+                  not: "closed",
+                },
+              },
+            ],
           },
 
           orderBy: {
@@ -10886,14 +10969,31 @@ module.exports = {
       }
 
       //check in table box before scan receive temp
-      const checkBoxIssue = await prisma.box.findFirst({
+      const latestBoxIssue = await prisma.box.findFirst({
         where: {
           wosNo: wosNo,
           status: "use",
         },
+
+        orderBy: {
+          id: "desc",
+        },
       });
-      if (checkBoxIssue) {
-        return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
+
+      if (latestBoxIssue) {
+        const checkLatestBoxClosed = await prisma.headerBoxClosed.findFirst({
+          where: {
+            boxId: latestBoxIssue.id,
+
+            status: "use",
+          },
+        });
+
+        if (!checkLatestBoxClosed) {
+          return res.status(400).send({
+            message: "WOS No นี้ยังอยู่ในระบบ",
+          });
+        }
       }
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
@@ -10991,14 +11091,31 @@ module.exports = {
       }
 
       //check in table box before scan receive temp
-      const checkBoxIssue = await prisma.box.findFirst({
+      const latestBoxIssue = await prisma.box.findFirst({
         where: {
           wosNo: wosNo,
           status: "use",
         },
+
+        orderBy: {
+          id: "desc",
+        },
       });
-      if (checkBoxIssue) {
-        return res.status(400).send({ message: "WOS No นี้อยู่ในระบบ แล้ว" });
+
+      if (latestBoxIssue) {
+        const checkLatestBoxClosed = await prisma.headerBoxClosed.findFirst({
+          where: {
+            boxId: latestBoxIssue.id,
+
+            status: "use",
+          },
+        });
+
+        if (!checkLatestBoxClosed) {
+          return res.status(400).send({
+            message: "WOS No นี้ยังอยู่ในระบบ",
+          });
+        }
       }
 
       const checkBoxRepeat = await prisma.boxIssueTemp.findFirst({
@@ -12463,9 +12580,7 @@ module.exports = {
     }
   },
 
-
-
-  //admin hard delete 
+  //admin hard delete
   deletePallet: async (req, res) => {
     try {
       const { palletId } = req.body;
@@ -13052,18 +13167,571 @@ module.exports = {
     }
   },
 
-  closedPallet: async(req,res) =>{
-    try{
+  closedPallet: async (req, res) => {
+    try {
       const { palletId } = req.body;
-      
 
-    }catch(e){
+      const CHUNK_SIZE = 500;
+
+      // =====================================================
+      // VALIDATE
+      // =====================================================
+
+      if (palletId == null) {
+        return res.status(400).send({
+          message: "missing_required_fields",
+        });
+      }
+
+      const palletIdInt = Number(palletId);
+
+      if (!Number.isInteger(palletIdInt) || palletIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_palletId",
+        });
+      }
+
+      // =====================================================
+      // TRANSACTION
+      // =====================================================
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+          // #################################################
+          //
+          // 1. CHECK PALLET
+          //
+          // #################################################
+
+          const pallet = await tx.pallet.findFirst({
+            where: {
+              id: palletIdInt,
+
+              status: "use",
+            },
+
+            select: {
+              id: true,
+
+              palletNoId: true,
+
+              userId: true,
+
+              closedState: true,
+
+              status: true,
+            },
+          });
+
+          if (!pallet) {
+            throw new Error("Pallet_notFound");
+          }
+
+          // =================================================
+          // กัน Close ซ้ำ
+          // =================================================
+
+          if (
+            String(pallet.closedState || "")
+              .trim()
+              .toLowerCase() === "closed"
+          ) {
+            throw new Error("Pallet_already_closed");
+          }
+
+          // #################################################
+          //
+          // 2. SEARCH HEADER ISSUE BY PALLET ID
+          //
+          // #################################################
+
+          const headerIds = [];
+
+          let lastHeaderId = 0;
+
+          while (true) {
+            const headerChunk = await tx.headerIssue.findMany({
+              where: {
+                palletId: palletIdInt,
+
+                status: "use",
+
+                id: {
+                  gt: lastHeaderId,
+                },
+              },
+
+              orderBy: {
+                id: "asc",
+              },
+
+              take: CHUNK_SIZE,
+
+              select: {
+                id: true,
+              },
+            });
+
+            if (headerChunk.length === 0) {
+              break;
+            }
+
+            for (const header of headerChunk) {
+              headerIds.push(Number(header.id));
+            }
+
+            lastHeaderId = Number(headerChunk[headerChunk.length - 1].id);
+          }
+
+          // =================================================
+          // ต้องมี Header อย่างน้อย 1
+          // =================================================
+
+          if (headerIds.length === 0) {
+            throw new Error("HeaderIssue_notFound");
+          }
+
+          // #################################################
+          //
+          // 3. SEARCH BOX ของทุก HEADER
+          //
+          // เก็บ:
+          // {
+          //   boxId,
+          //   headId
+          // }
+          //
+          // #################################################
+
+          const boxRows = [];
+
+          for (let i = 0; i < headerIds.length; i += CHUNK_SIZE) {
+            const headerIdChunk = headerIds.slice(i, i + CHUNK_SIZE);
+
+            let lastBoxId = 0;
+
+            while (true) {
+              const boxChunk = await tx.box.findMany({
+                where: {
+                  headerId: {
+                    in: headerIdChunk,
+                  },
+
+                  status: "use",
+
+                  id: {
+                    gt: lastBoxId,
+                  },
+                },
+
+                orderBy: {
+                  id: "asc",
+                },
+
+                take: CHUNK_SIZE,
+
+                select: {
+                  id: true,
+
+                  headerId: true,
+                },
+              });
+
+              if (boxChunk.length === 0) {
+                break;
+              }
+
+              for (const box of boxChunk) {
+                boxRows.push({
+                  boxId: Number(box.id),
+
+                  headId: Number(box.headerId),
+                });
+              }
+
+              lastBoxId = Number(boxChunk[boxChunk.length - 1].id);
+            }
+          }
+
+          // #################################################
+          //
+          // 4. CREATE CLOSED NO
+          //
+          // FORMAT:
+          //
+          // YY + MONTH_CODE + DD + RUNNING 3 DIGIT
+          //
+          // Example:
+          // 2026-10-05
+          // 26X05003
+          //
+          // Month:
+          // 1-9  = 1-9
+          // 10   = X
+          // 11   = Y
+          // 12   = Z
+          //
+          // #################################################
+
+          // =================================================
+          // ใช้เวลา Thailand UTC+7
+          // =================================================
+
+          const now = new Date();
+
+          const thailandNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+
+          const year = thailandNow.getUTCFullYear();
+
+          const month = thailandNow.getUTCMonth() + 1;
+
+          const day = thailandNow.getUTCDate();
+
+          const yearCode = String(year).slice(-2);
+
+          let monthCode = String(month);
+
+          if (month === 10) {
+            monthCode = "X";
+          } else if (month === 11) {
+            monthCode = "Y";
+          } else if (month === 12) {
+            monthCode = "Z";
+          }
+
+          const dayCode = String(day).padStart(2, "0");
+
+          // =================================================
+          // Bangkok Day Range
+          //
+          // เอาไว้ Count HeaderClosed ของวันนั้น
+          // =================================================
+
+          const startOfThailandDay = new Date(
+            Date.UTC(year, month - 1, day, 0, 0, 0, 0) - 7 * 60 * 60 * 1000
+          );
+
+          const endOfThailandDay = new Date(
+            startOfThailandDay.getTime() + 24 * 60 * 60 * 1000
+          );
+
+          // =================================================
+          // COUNT HEADER CLOSED วันนี้
+          // =================================================
+
+          const closedCountToday = await tx.headerClosed.count({
+            where: {
+              timeStmp: {
+                gte: startOfThailandDay,
+
+                lt: endOfThailandDay,
+              },
+            },
+          });
+
+          const runningNo = closedCountToday + 1;
+
+          const runningCode = String(runningNo).padStart(3, "0");
+
+          const closedNo = `${yearCode}${monthCode}${dayCode}${runningCode}`;
+
+          // #################################################
+          //
+          // 5. CREATE HEADER CLOSED
+          //
+          // Pallet 1 ตัว = HeaderClosed 1 Record
+          //
+          // #################################################
+
+          const headerClosed = await tx.headerClosed.create({
+            data: {
+              closedNo: closedNo,
+
+              status: "use",
+            },
+
+            select: {
+              id: true,
+
+              closedNo: true,
+
+              timeStmp: true,
+            },
+          });
+
+          const headerClosedId = Number(headerClosed.id);
+
+          // #################################################
+          //
+          // 6. CREATE HEADER BOX CLOSED
+          //
+          // headerClosedId = ตัวเดียวกันทั้งหมด
+          // palletId       = ตัวเดียวกันทั้งหมด
+          //
+          // headId / boxId = ตามแต่ละ Box
+          //
+          // #################################################
+
+          let createdHeaderBoxClosedCount = 0;
+
+          for (let i = 0; i < boxRows.length; i += CHUNK_SIZE) {
+            const boxChunk = boxRows.slice(i, i + CHUNK_SIZE);
+
+            const data = boxChunk.map((row) => ({
+              headerClosedId: headerClosedId,
+
+              boxId: Number(row.boxId),
+
+              headId: Number(row.headId),
+
+              palletId: palletIdInt,
+
+              // ใช้ User ของ Pallet
+              userId: Number(pallet.userId),
+
+              status: "use",
+            }));
+
+            const createResult = await tx.headerBoxClosed.createMany({
+              data: data,
+            });
+
+            createdHeaderBoxClosedCount += Number(createResult.count || 0);
+          }
+
+          // #################################################
+          //
+          // 7. UPDATE HEADER ISSUE -> CLOSED
+          //
+          // ทำให้ครบทุก Header ของ Pallet
+          //
+          // #################################################
+
+          let closedHeaderCount = 0;
+
+          for (let i = 0; i < headerIds.length; i += CHUNK_SIZE) {
+            const headerIdChunk = headerIds.slice(i, i + CHUNK_SIZE);
+
+            const updateHeaders = await tx.headerIssue.updateMany({
+              where: {
+                id: {
+                  in: headerIdChunk,
+                },
+
+                palletId: palletIdInt,
+              },
+
+              data: {
+                closedState: "closed",
+              },
+            });
+
+            closedHeaderCount += Number(updateHeaders.count || 0);
+          }
+
+          // #################################################
+          //
+          // 8. SEARCH TAC HEADER BY PALLET
+          //
+          // #################################################
+
+          const tacHeaderIds = [];
+
+          let lastTacHeaderId = 0;
+
+          while (true) {
+            const tacHeaderChunk = await tx.headerIssueTempTAC.findMany({
+              where: {
+                palletId: palletIdInt,
+
+                id: {
+                  gt: lastTacHeaderId,
+                },
+              },
+
+              orderBy: {
+                id: "asc",
+              },
+
+              take: CHUNK_SIZE,
+
+              select: {
+                id: true,
+              },
+            });
+
+            if (tacHeaderChunk.length === 0) {
+              break;
+            }
+
+            for (const tacHeader of tacHeaderChunk) {
+              tacHeaderIds.push(Number(tacHeader.id));
+            }
+
+            lastTacHeaderId = Number(
+              tacHeaderChunk[tacHeaderChunk.length - 1].id
+            );
+          }
+
+          // #################################################
+          //
+          // 9. HARD DELETE TAC
+          //
+          // MapHeaderIssueFractionTAC
+          //       ↓
+          // BoxTAC
+          //       ↓
+          // HeaderIssueTempTAC
+          //
+          // #################################################
+
+          let deletedTacMapCount = 0;
+
+          let deletedTacBoxCount = 0;
+
+          let deletedTacHeaderCount = 0;
+
+          for (let i = 0; i < tacHeaderIds.length; i += CHUNK_SIZE) {
+            const tacHeaderIdChunk = tacHeaderIds.slice(i, i + CHUNK_SIZE);
+
+            // ===============================================
+            // 9.1 DELETE MAP FRACTION TAC
+            // ===============================================
+
+            const deleteTacMap = await tx.mapHeaderIssueFractionTAC.deleteMany({
+              where: {
+                headerId: {
+                  in: tacHeaderIdChunk,
+                },
+              },
+            });
+
+            deletedTacMapCount += Number(deleteTacMap.count || 0);
+
+            // ===============================================
+            // 9.2 DELETE BOX TAC
+            // ===============================================
+
+            const deleteTacBox = await tx.boxTAC.deleteMany({
+              where: {
+                headerId: {
+                  in: tacHeaderIdChunk,
+                },
+              },
+            });
+
+            deletedTacBoxCount += Number(deleteTacBox.count || 0);
+
+            // ===============================================
+            // 9.3 DELETE HEADER TAC
+            // ===============================================
+
+            const deleteTacHeader = await tx.headerIssueTempTAC.deleteMany({
+              where: {
+                id: {
+                  in: tacHeaderIdChunk,
+                },
+
+                palletId: palletIdInt,
+              },
+            });
+
+            deletedTacHeaderCount += Number(deleteTacHeader.count || 0);
+          }
+
+          // #################################################
+          //
+          // 10. UPDATE PALLET -> CLOSED
+          //
+          // ต้องทำท้ายสุด
+          //
+          // #################################################
+
+          const updatedPallet = await tx.pallet.update({
+            where: {
+              id: palletIdInt,
+            },
+
+            data: {
+              closedState: "closed",
+            },
+
+            select: {
+              id: true,
+
+              palletNoId: true,
+
+              closedState: true,
+
+              mapAreaRackId: true,
+
+              userId: true,
+            },
+          });
+
+          return {
+            palletId: updatedPallet.id,
+
+            palletNoId: updatedPallet.palletNoId,
+
+            closedState: updatedPallet.closedState,
+
+            headerClosedId: headerClosedId,
+
+            closedNo: headerClosed.closedNo,
+
+            totalHeader: headerIds.length,
+
+            totalBox: boxRows.length,
+
+            closedHeaderCount: closedHeaderCount,
+
+            createdHeaderBoxClosedCount: createdHeaderBoxClosedCount,
+
+            deletedTacHeaderCount: deletedTacHeaderCount,
+
+            deletedTacBoxCount: deletedTacBoxCount,
+
+            deletedTacMapCount: deletedTacMapCount,
+          };
+        },
+
+        {
+          isolationLevel: "Serializable",
+
+          maxWait: 10000,
+
+          timeout: 120000,
+        }
+      );
+
+      return res.send({
+        message: "closed_pallet_success",
+
+        data: result,
+      });
+    } catch (e) {
+      if (e.message === "Pallet_notFound") {
+        return res.status(404).send({
+          message: "Pallet_notFound",
+        });
+      }
+
+      if (e.message === "Pallet_already_closed") {
+        return res.status(400).send({
+          message: "Pallet_already_closed",
+        });
+      }
+
+      if (e.message === "HeaderIssue_notFound") {
+        return res.status(400).send({
+          message: "HeaderIssue_notFound",
+        });
+      }
+
       return res.status(500).send({
         error: e.message,
       });
     }
-  }
+  },
 };
-
-
-

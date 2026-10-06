@@ -105,7 +105,9 @@ app.post('/api/issue/deleteboxfractionTac',(req, res) => issueController.deleteb
 app.post('/api/issue/editHeaderTac',(req, res) => issueController.editHeaderTac(req,res));
 
 app.post('/api/issue/saveNewHeaderTac',(req, res) => issueController.saveNewHeaderTac(req,res));
-app.post('/api/issue/deletePallet',(req, res) => issueController.deletePallet(req,res));
+//app.post('/api/issue/deletePallet',(req, res) => issueController.deletePallet(req,res));
+app.post('/api/issue/deletePallet',(req, res) => issueController.closedPallet(req,res));
+app.post('/api/issue/closedPallet',(req, res) => issueController.closedPallet(req,res));
 
 
 app.listen(3001, () => {

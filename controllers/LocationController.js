@@ -346,7 +346,9 @@ module.exports = {
             Rack: {
               select: {
                 id: true,
+
                 name: true,
+
                 status: true,
               },
             },
@@ -354,7 +356,9 @@ module.exports = {
             Area: {
               select: {
                 id: true,
+
                 name: true,
+
                 status: true,
               },
             },
@@ -382,13 +386,14 @@ module.exports = {
         const mapAreaRackIds = mapAreaRackChunk.map((row) => Number(row.id));
 
         // ===================================================
-        // 3. LOAD PALLET ของ LOCATION ชุดนี้
+        // 3. LOAD ACTIVE PALLET ของ LOCATION ชุดนี้
+        //
+        // IMPORTANT:
+        // closedState = "closed"
+        // จะไม่ถูกเอามาใช้
         // ===================================================
 
         const pallets = [];
-
-        // ใช้ cursor เพื่อกันกรณี Pallet ต่อ Location เยอะ
-        // และป้องกัน query result ใหญ่เกินไป
 
         let lastPalletId = 0;
 
@@ -402,6 +407,27 @@ module.exports = {
               id: {
                 gt: lastPalletId,
               },
+
+              status: "use",
+
+              // =============================================
+              // CLOSED PALLET
+              //
+              // ถ้า closedState = closed
+              // ถือว่าออกจาก Location ไปแล้ว
+              // =============================================
+
+              OR: [
+                {
+                  closedState: null,
+                },
+
+                {
+                  closedState: {
+                    not: "closed",
+                  },
+                },
+              ],
             },
 
             select: {
@@ -418,6 +444,8 @@ module.exports = {
               labelType: true,
 
               userId: true,
+
+              closedState: true,
 
               timeStmp: true,
             },
@@ -465,16 +493,26 @@ module.exports = {
             palletByMapAreaRackId.get(mapAreaRackId) || [];
 
           // =================================================
-          // NEWEST PALLET FIRST
+          // NEWEST ACTIVE PALLET FIRST
           // =================================================
 
           locationPallets.sort((a, b) => Number(b.id) - Number(a.id));
+
+          // =================================================
+          // PALLET COUNT
+          //
+          // ตรงนี้จะนับเฉพาะ Pallet ที่ไม่ closed
+          // =================================================
 
           const palletCount = locationPallets.length;
 
           const isOccupied = palletCount > 0;
 
           const isEmpty = !isOccupied;
+
+          // =================================================
+          // LOCATION NAME
+          // =================================================
 
           const rackName = String(location.Rack?.name || "").trim();
 
@@ -497,7 +535,7 @@ module.exports = {
           }
 
           // =================================================
-          // CURRENT / LATEST PALLET
+          // CURRENT / LATEST ACTIVE PALLET
           // =================================================
 
           const latestPallet =
@@ -535,7 +573,7 @@ module.exports = {
             palletCount: palletCount,
 
             // ===============================================
-            // LATEST PALLET
+            // LATEST ACTIVE PALLET
             // ===============================================
 
             palletId: latestPallet ? Number(latestPallet.id) : null,
@@ -543,7 +581,9 @@ module.exports = {
             palletNoId: latestPallet ? latestPallet.palletNoId : null,
 
             // ===============================================
-            // ALL PALLET IN LOCATION
+            // ALL ACTIVE PALLET IN LOCATION
+            //
+            // closed Pallet จะไม่อยู่ในนี้
             // ===============================================
 
             pallets: locationPallets.map((pallet) => ({
@@ -561,6 +601,8 @@ module.exports = {
 
               userId: Number(pallet.userId),
 
+              closedState: pallet.closedState,
+
               timeStmp: pallet.timeStmp,
             })),
           });
@@ -574,10 +616,6 @@ module.exports = {
           mapAreaRackChunk[mapAreaRackChunk.length - 1].id
         );
       }
-
-      // =====================================================
-      // RESPONSE
-      // =====================================================
 
       return res.send({
         message: "map_location_pallet_success",
@@ -595,8 +633,6 @@ module.exports = {
         results: results,
       });
     } catch (e) {
-      console.error("MAP LOCATION PALLET ERROR:", e);
-
       return res.status(500).send({
         message: "map_location_pallet_error",
 
@@ -711,6 +747,28 @@ module.exports = {
               id: {
                 gt: lastPalletId,
               },
+
+              status: "use",
+
+              // =================================================
+              // CLOSED PALLET
+              //
+              // closedState = "closed"
+              // ถือว่า Pallet ออกจาก Location แล้ว
+              // ไม่ต้องเอามาแสดงใน Layout
+              // =================================================
+
+              OR: [
+                {
+                  closedState: null,
+                },
+
+                {
+                  closedState: {
+                    not: "closed",
+                  },
+                },
+              ],
             },
 
             select: {
@@ -727,6 +785,8 @@ module.exports = {
               labelType: true,
 
               userId: true,
+
+              closedState: true,
 
               timeStmp: true,
 
@@ -1376,7 +1436,11 @@ module.exports = {
         async (tx) => {
           // #################################################
           //
-          // 1. CHECK PALLET
+          // 1. CHECK ACTIVE PALLET
+          //
+          // closedState = closed
+          // ถือว่า Pallet ออกจาก Location แล้ว
+          // ไม่สามารถ Move ได้
           //
           // #################################################
 
@@ -1385,6 +1449,22 @@ module.exports = {
               id: palletIdInt,
 
               status: "use",
+
+              // =============================================
+              // ACTIVE PALLET ONLY
+              // =============================================
+
+              OR: [
+                {
+                  closedState: null,
+                },
+
+                {
+                  closedState: {
+                    not: "closed",
+                  },
+                },
+              ],
             },
 
             select: {
@@ -1393,6 +1473,8 @@ module.exports = {
               palletNoId: true,
 
               mapAreaRackId: true,
+
+              closedState: true,
 
               status: true,
             },
@@ -1405,9 +1487,6 @@ module.exports = {
           // #################################################
           //
           // 2. CHECK DESTINATION MAP AREA RACK
-          //
-          // ดึง Rack / Area มาด้วย
-          // เพื่อดูว่าเป็น PENDING หรือไม่
           //
           // #################################################
 
@@ -1467,9 +1546,6 @@ module.exports = {
           //
           // 4. CHECK PENDING
           //
-          // รองรับทั้งกรณีชื่อ Rack = Pending
-          // และ Area = Pending
-          //
           // #################################################
 
           const rackName = String(destination.Rack?.name || "")
@@ -1485,14 +1561,16 @@ module.exports = {
 
           // #################################################
           //
-          // 5. CHECK AREA OCCUPIED
+          // 5. CHECK DESTINATION OCCUPIED
           //
-          // NORMAL LOCATION:
-          //   มี pallet แล้ว -> block
+          // NORMAL:
+          //   Active Pallet อยู่แล้ว -> Block
+          //
+          // CLOSED PALLET:
+          //   ไม่นับ
           //
           // PENDING:
-          //   ไม่ check occupied
-          //   มี pallet กี่ตัวก็ move เข้าได้
+          //   ไม่ Block
           //
           // #################################################
 
@@ -1508,6 +1586,25 @@ module.exports = {
                 id: {
                   not: palletIdInt,
                 },
+
+                // =========================================
+                // IMPORTANT
+                //
+                // closedState = closed
+                // ไม่ถือว่าอยู่ใน Location
+                // =========================================
+
+                OR: [
+                  {
+                    closedState: null,
+                  },
+
+                  {
+                    closedState: {
+                      not: "closed",
+                    },
+                  },
+                ],
               },
 
               select: {
@@ -1516,6 +1613,8 @@ module.exports = {
                 palletNoId: true,
 
                 mapAreaRackId: true,
+
+                closedState: true,
               },
             });
 
