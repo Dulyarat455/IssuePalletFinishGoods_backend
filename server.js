@@ -3,6 +3,64 @@ const app = express();
 
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const dotenv  = require("dotenv");
+
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
+
+dotenv.config();
+
+
+const allowedOrigins = [
+   // 'http://localhost:4200',
+   'http://10.121.51.101:4200', // 👈 ใส่ IP เครื่อง Server notebook
+ // 'http://10.121.1.85'// เครื่อง server จริง
+
+];
+
+
+app.use(cors({
+   origin: allowedOrigins,
+   credentials: true
+}));
+
+
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+
+
+//add new for socket
+const http = require('http');
+const server = http.createServer(app);
+
+const { Server } = require('socket.io');
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+
+
+// เก็บ io ไว้ใน global ให้ controller เรียกใช้ได้
+global.io = io;
+
+// ลอง log ดู
+io.on('connection', (socket) => {
+    console.log('client connected:', socket.id);
+  
+    socket.on('disconnect', () => {
+      console.log('client disconnected:', socket.id);
+    });
+});
+// ==== จบส่วน socket.io ====
+
+
+
 
 
 const userController = require('./controllers/UserController')
@@ -14,15 +72,13 @@ const controlLotController = require('./controllers/ControlLotController')
 const issueController = require('./controllers/IssueController')
 
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
-
-
 // user
 app.post('/api/user/create', (req, res) => userController.create(req,res))
 app.post('/api/user/list', (req, res) => userController.list(req,res))
 app.post('/api/user/signIn', (req, res) => userController.signIn(req,res))
+app.post('/api/user/signInRfId', (req, res) => userController.signInRfId(req,res))
+app.get('/api/user/getStatusUser', (req, res) => userController.getStatusUser(req,res))
+
 
 // group
 app.post('/api/group/add', (req,res) => groupController.add(req,res))
@@ -110,13 +166,19 @@ app.post('/api/issue/deletePallet',(req, res) => issueController.closedPallet(re
 app.post('/api/issue/closedPallet',(req, res) => issueController.closedPallet(req,res));
 
 
-app.listen(3001, () => {
-    console.log("API Server Running...");
+// เครื่อง server จริง
+// server.listen(3011,() => {
+//    console.log('API + WebSocket listening on port 3011');
+//  });
+
+
+
+
+server.listen(3001,'0.0.0.0', () => {
+   console.log('API + WebSocket listening on port 3001');
 });
 
 
-
-
 // app.listen(3001,'0.0.0.0', () => {
-//    console.log('API + WebSocket listening on port 3001');
+//   console.log('API + WebSocket listening on port 3001');
 // });

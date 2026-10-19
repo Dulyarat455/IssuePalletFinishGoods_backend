@@ -9435,6 +9435,11 @@ module.exports = {
         }
       );
 
+       // ✅ ส่งสัญญาณไปให้ทุก client รู้ว่ามีการเปลี่ยนแปลง
+       if (global.io) {
+        global.io.emit('palletLabel:changed', { type: 'palletLabelChange', ...result });
+      }
+
       // =====================================================
       // SUCCESS
       // =====================================================
@@ -10828,6 +10833,12 @@ module.exports = {
           timeout: 120000,
         }
       );
+
+
+       // ✅ ส่งสัญญาณไปให้ทุก client รู้ว่ามีการเปลี่ยนแปลง
+       if (global.io) {
+        global.io.emit('palletLabel:changed', { type: 'palletLabelChange', ...result });
+      }
 
       // =====================================================
       // SUCCESS
@@ -12556,6 +12567,11 @@ module.exports = {
         }
       );
 
+      // ✅ ส่งสัญญาณไปให้ทุก client รู้ว่ามีการเปลี่ยนแปลง
+      if (global.io) {
+        global.io.emit('palletLabel:changed', { type: 'palletLabelChange', ...result });
+      }
+
       return res.send({
         message: "save_new_header_tac_success",
 
@@ -13704,6 +13720,11 @@ module.exports = {
           timeout: 120000,
         }
       );
+
+      // ✅ ส่งสัญญาณไปให้ทุก client รู้ว่ามีการเปลี่ยนแปลง
+      if (global.io) {
+        global.io.emit('palletLabel:changed', { type: 'palletLabelChange', ...result });
+      }
 
       return res.send({
         message: "closed_pallet_success",

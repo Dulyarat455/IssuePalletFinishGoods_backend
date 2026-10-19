@@ -1699,6 +1699,12 @@ module.exports = {
         }
       );
 
+
+      // ✅ ส่งสัญญาณไปให้ทุก client รู้ว่ามีการเปลี่ยนแปลง
+      if (global.io) {
+        global.io.emit('palletLabel:changed', { type: 'palletLabelChange', ...result });
+      }
+
       return res.send({
         message: "move_pallet_success",
 

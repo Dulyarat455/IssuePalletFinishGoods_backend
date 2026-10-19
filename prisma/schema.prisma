@@ -28,6 +28,9 @@ model User {
   Pallet Pallet[]
   HeaderClosedTemp HeaderClosedTemp[]
   HeaderBoxClosed HeaderBoxClosed[]
+  LocCreatePallet LocCreatePallet[]
+  LocAddInPallet LocAddInPallet[]
+  LocMovePallet LocMovePallet[]
 }
 
 
@@ -126,7 +129,9 @@ model Pallet {
   HeaderIssue HeaderIssue[]
   HeaderClosedTemp HeaderClosedTemp[]
   HeaderBoxClosed HeaderBoxClosed[]
-
+  LocCreatePallet LocCreatePallet[]
+  LocAddInPallet LocAddInPallet[]
+  LocMovePallet LocMovePallet[]
 }
 
 
@@ -171,6 +176,8 @@ model HeaderIssue {
   Box Box[]
   HeaderClosedTemp HeaderClosedTemp[]
   HeaderBoxClosed HeaderBoxClosed[]
+  LocCreatePallet LocCreatePallet[]
+  LocAddInPallet LocAddInPallet[]
 }
 
 model ControlLot {
@@ -351,7 +358,44 @@ model MapHeaderIssueFractionTAC {
 }
 
 
+//new model for report Loc 
 
+model LocCreatePallet {
+  id Int @id() @default(autoincrement())
+  palletId Int
+  headId Int
+  userId Int
+  timeStmp DateTime @default(now())
+  Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction) 
+  HeaderIssue HeaderIssue @relation(fields: [headId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+
+
+model LocAddInPallet {
+  id Int @id() @default(autoincrement())
+  palletId Int
+  headId Int
+  userId Int
+  timeStmp DateTime @default(now())
+  Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction) 
+  HeaderIssue HeaderIssue @relation(fields: [headId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+
+
+model LocMovePallet {
+  id Int @id() @default(autoincrement())
+  palletId Int
+  StartAreaId Int
+  EndAreaId Int
+  userId Int
+  timeStmp DateTime @default(now())
+  Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction) 
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
 
 
 
