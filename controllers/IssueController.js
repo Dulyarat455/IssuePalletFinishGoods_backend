@@ -9008,6 +9008,9 @@ module.exports = {
 
           let createdFractionMapCount = 0;
 
+          // LOC CREATE PALLET COUNT
+          let createdLocCreatePalletCount = 0;
+
           const allHeaderTempIds = [];
 
           const createdLabelNos = [];
@@ -9263,6 +9266,224 @@ module.exports = {
             );
           }
 
+
+
+          // #################################################
+          //
+          // PHASE 1.5
+          // CREATE LOC CREATE PALLET
+          //
+          // หลังจากสร้าง Pallet + HeaderIssue ครบแล้ว
+          // ให้ Record Header ทุกตัวของ Pallet นี้
+          //
+          // #################################################
+
+
+          // =====================================================
+          // 8.5 FIND HEADER ISSUE BY NEW PALLET
+          //
+          // Query HeaderIssue ของ Pallet ที่เพิ่งสร้าง
+          // อ่านทีละ 500
+          // =====================================================
+
+          let lastRealHeaderId = 0;
+
+          let realHeaderCount = 0;
+
+
+          while (true) {
+
+            const headerChunk =
+              await tx.headerIssue.findMany({
+
+                where: {
+
+                  palletId:
+                    Number(newPallet.id),
+
+                  id: {
+                    gt: lastRealHeaderId,
+                  },
+
+                },
+
+
+                select: {
+                  id: true,
+                  palletId: true,
+                  userId: true,
+                },
+
+
+                orderBy: {
+                  id: "asc",
+                },
+
+
+                take: CHUNK_SIZE,
+
+              });
+
+
+            // ===================================================
+            // ไม่มี Header เหลือแล้ว
+            // ===================================================
+
+            if (
+              headerChunk.length === 0
+            ) {
+              break;
+            }
+
+
+            realHeaderCount +=
+              headerChunk.length;
+
+
+            // ===================================================
+            // BUILD LOC DATA
+            //
+            // IMPORTANT:
+            // userId ใช้คนที่กดสร้าง Pallet
+            // ไม่ใช่ userId ของ Header
+            // ===================================================
+
+            const locCreatePalletData =
+              headerChunk.map(
+                (header) => ({
+
+                  palletId:
+                    Number(newPallet.id),
+
+                  headId:
+                    Number(header.id),
+
+                  userId:
+                    userIdInt,
+
+                })
+              );
+
+
+            // ===================================================
+            // CREATE LOC CREATE PALLET
+            // ===================================================
+
+            const createdLoc =
+              await tx.locCreatePallet.createMany({
+
+                data:
+                  locCreatePalletData,
+
+              });
+
+
+            createdLocCreatePalletCount +=
+              createdLoc.count;
+
+
+            // ===================================================
+            // NEXT CHUNK
+            // ===================================================
+
+            lastRealHeaderId =
+              Number(
+                headerChunk[
+                  headerChunk.length - 1
+                ].id
+              );
+
+          }
+
+
+          // =====================================================
+          // VERIFY HEADER COUNT
+          //
+          // HeaderIssue ใน Pallet มีกี่ตัว
+          // LocCreatePallet ต้องมีเท่านั้น
+          // =====================================================
+
+          if (
+            realHeaderCount !==
+            createdLocCreatePalletCount
+          ) {
+
+            const error =
+              new Error(
+                "loc_create_pallet_incomplete"
+              );
+
+
+            error.data = {
+
+              palletId:
+                Number(newPallet.id),
+
+              headerCount:
+                realHeaderCount,
+
+              locCreatedCount:
+                createdLocCreatePalletCount,
+
+            };
+
+
+            throw error;
+
+          }
+
+
+          // =====================================================
+          // VERIFY AGAIN FROM DATABASE
+          // =====================================================
+
+          const verifyLocCount =
+            await tx.locCreatePallet.count({
+
+              where: {
+
+                palletId:
+                  Number(newPallet.id),
+
+                userId:
+                  userIdInt,
+
+              },
+
+            });
+
+
+          if (
+            verifyLocCount !==
+            realHeaderCount
+          ) {
+
+            const error =
+              new Error(
+                "loc_create_pallet_verify_failed"
+              );
+
+
+            error.data = {
+
+              palletId:
+                Number(newPallet.id),
+
+              headerCount:
+                realHeaderCount,
+
+              locCount:
+                verifyLocCount,
+
+            };
+
+
+            throw error;
+
+          }
+
+
+
           // #################################################
           //
           // PHASE 2
@@ -9408,6 +9629,13 @@ module.exports = {
 
             createdFractionMapCount: createdFractionMapCount,
 
+
+            // LOC CREATE PALLET
+            createdLocCreatePalletCount: createdLocCreatePalletCount,
+
+            locCreatePalletVerified: createdLocCreatePalletCount === createdHeaderCount,
+
+
             // DELETE TEMP COUNT
 
             deletedTempMapCount: deletedTempMapCount,
@@ -9523,6 +9751,56 @@ module.exports = {
         return res.status(409).send({
           message: "pallet_no_already_exists",
         });
+      }
+
+
+      // =====================================================
+      // LOC CREATE PALLET INCOMPLETE
+      // =====================================================
+
+      if (
+        e.message ===
+        "loc_create_pallet_incomplete"
+      ) {
+
+        return res.status(500).send({
+
+          message:
+            "loc_create_pallet_incomplete",
+
+          displayMessage:
+            "สร้างประวัติ Create Pallet ไม่ครบทุก Header",
+
+          data:
+            e.data || null,
+
+        });
+
+      }
+
+
+      // =====================================================
+      // LOC CREATE PALLET VERIFY FAILED
+      // =====================================================
+
+      if (
+        e.message ===
+        "loc_create_pallet_verify_failed"
+      ) {
+
+        return res.status(500).send({
+
+          message:
+            "loc_create_pallet_verify_failed",
+
+          displayMessage:
+            "ตรวจสอบประวัติ Create Pallet แล้วจำนวน Header ไม่ตรงกัน",
+
+          data:
+            e.data || null,
+
+        });
+
       }
 
       // =====================================================
