@@ -1316,7 +1316,7 @@ module.exports = {
           results.push({
             mapAreaRackId: mapAreaRackId,
 
-            rackId: Number(location.rackId),
+            rackId: Number(location.rackId),                                            
 
             areaId: Number(location.areaId),
 
@@ -1742,4 +1742,8 @@ module.exports = {
       });
     }
   },
+
+
+
+  
 };

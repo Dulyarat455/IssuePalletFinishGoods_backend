@@ -389,8 +389,8 @@ model LocAddInPallet {
 model LocMovePallet {
   id Int @id() @default(autoincrement())
   palletId Int
-  StartAreaId Int
-  EndAreaId Int
+  startAreaId Int
+  endAreaId Int
   userId Int
   timeStmp DateTime @default(now())
   Pallet Pallet @relation(fields: [palletId], references: [id], onDelete: NoAction, onUpdate: NoAction) 
