@@ -1316,7 +1316,7 @@ module.exports = {
           results.push({
             mapAreaRackId: mapAreaRackId,
 
-            rackId: Number(location.rackId),                                            
+            rackId: Number(location.rackId),
 
             areaId: Number(location.areaId),
 
@@ -1392,13 +1392,13 @@ module.exports = {
 
   movePallet: async (req, res) => {
     try {
-      const { palletId, mapAreaRackId } = req.body;
+      const { palletId, mapAreaRackId, userId } = req.body;
 
       // =====================================================
       // VALIDATE REQUIRED FIELD
       // =====================================================
 
-      if (palletId == null || mapAreaRackId == null) {
+      if (palletId == null || mapAreaRackId == null || userId == null) {
         return res.status(400).send({
           message: "missing_required_fields",
         });
@@ -1411,6 +1411,8 @@ module.exports = {
       const palletIdInt = Number(palletId);
 
       const mapAreaRackIdInt = Number(mapAreaRackId);
+
+      const userIdInt = Number(userId);
 
       // =====================================================
       // VALIDATE NUMBER
@@ -1428,6 +1430,12 @@ module.exports = {
         });
       }
 
+      if (!Number.isInteger(userIdInt) || userIdInt <= 0) {
+        return res.status(400).send({
+          message: "invalid_userId",
+        });
+      }
+
       // =====================================================
       // TRANSACTION
       // =====================================================
@@ -1436,11 +1444,35 @@ module.exports = {
         async (tx) => {
           // #################################################
           //
-          // 1. CHECK ACTIVE PALLET
+          // 1. CHECK USER
           //
-          // closedState = closed
-          // ถือว่า Pallet ออกจาก Location แล้ว
-          // ไม่สามารถ Move ได้
+          // #################################################
+
+          const user = await tx.user.findFirst({
+            where: {
+              id: userIdInt,
+
+              status: "use",
+            },
+
+            select: {
+              id: true,
+
+              empNo: true,
+
+              name: true,
+
+              status: true,
+            },
+          });
+
+          if (!user) {
+            throw new Error("user_not_found");
+          }
+
+          // #################################################
+          //
+          // 2. CHECK ACTIVE PALLET
           //
           // #################################################
 
@@ -1449,10 +1481,6 @@ module.exports = {
               id: palletIdInt,
 
               status: "use",
-
-              // =============================================
-              // ACTIVE PALLET ONLY
-              // =============================================
 
               OR: [
                 {
@@ -1484,9 +1512,15 @@ module.exports = {
             throw new Error("Pallet_notFound");
           }
 
+          // =====================================================
+          // KEEP OLD LOCATION
+          // =====================================================
+
+          const oldMapAreaRackId = Number(pallet.mapAreaRackId);
+
           // #################################################
           //
-          // 2. CHECK DESTINATION MAP AREA RACK
+          // 3. CHECK DESTINATION MAP AREA RACK
           //
           // #################################################
 
@@ -1534,17 +1568,17 @@ module.exports = {
 
           // #################################################
           //
-          // 3. CHECK SAME LOCATION
+          // 4. CHECK SAME LOCATION
           //
           // #################################################
 
-          if (Number(pallet.mapAreaRackId) === mapAreaRackIdInt) {
+          if (oldMapAreaRackId === mapAreaRackIdInt) {
             throw new Error("same_map_area_rack");
           }
 
           // #################################################
           //
-          // 4. CHECK PENDING
+          // 5. CHECK PENDING
           //
           // #################################################
 
@@ -1561,16 +1595,7 @@ module.exports = {
 
           // #################################################
           //
-          // 5. CHECK DESTINATION OCCUPIED
-          //
-          // NORMAL:
-          //   Active Pallet อยู่แล้ว -> Block
-          //
-          // CLOSED PALLET:
-          //   ไม่นับ
-          //
-          // PENDING:
-          //   ไม่ Block
+          // 6. CHECK DESTINATION OCCUPIED
           //
           // #################################################
 
@@ -1586,13 +1611,6 @@ module.exports = {
                 id: {
                   not: palletIdInt,
                 },
-
-                // =========================================
-                // IMPORTANT
-                //
-                // closedState = closed
-                // ไม่ถือว่าอยู่ใน Location
-                // =========================================
 
                 OR: [
                   {
@@ -1629,11 +1647,9 @@ module.exports = {
 
           // #################################################
           //
-          // 6. UPDATE PALLET LOCATION
+          // 7. UPDATE PALLET LOCATION
           //
           // #################################################
-
-          const oldMapAreaRackId = Number(pallet.mapAreaRackId);
 
           const updatedPallet = await tx.pallet.update({
             where: {
@@ -1663,6 +1679,44 @@ module.exports = {
             },
           });
 
+          // #################################################
+          //
+          // 8. CREATE LOC MOVE PALLET
+          //
+          // #################################################
+
+          const locMovePallet = await tx.locMovePallet.create({
+            data: {
+              palletId: Number(updatedPallet.id),
+
+              startAreaId: oldMapAreaRackId,
+
+              endAreaId: mapAreaRackIdInt,
+
+              userId: userIdInt,
+            },
+
+            select: {
+              id: true,
+
+              palletId: true,
+
+              startAreaId: true,
+
+              endAreaId: true,
+
+              userId: true,
+
+              timeStmp: true,
+            },
+          });
+
+          // #################################################
+          //
+          // 9. RESULT
+          //
+          // #################################################
+
           return {
             palletId: updatedPallet.id,
 
@@ -1671,6 +1725,14 @@ module.exports = {
             oldMapAreaRackId: oldMapAreaRackId,
 
             newMapAreaRackId: updatedPallet.mapAreaRackId,
+
+            moveBy: {
+              userId: user.id,
+
+              empNo: user.empNo,
+
+              name: user.name,
+            },
 
             destination: {
               mapAreaRackId: destination.id,
@@ -1686,6 +1748,20 @@ module.exports = {
               isPending: isPendingDestination,
             },
 
+            locMovePallet: {
+              id: locMovePallet.id,
+
+              palletId: locMovePallet.palletId,
+
+              startAreaId: locMovePallet.startAreaId,
+
+              endAreaId: locMovePallet.endAreaId,
+
+              userId: locMovePallet.userId,
+
+              timeStmp: locMovePallet.timeStmp,
+            },
+
             pallet: updatedPallet,
           };
         },
@@ -1699,11 +1775,21 @@ module.exports = {
         }
       );
 
+      // =====================================================
+      // SOCKET
+      // =====================================================
 
-      // ✅ ส่งสัญญาณไปให้ทุก client รู้ว่ามีการเปลี่ยนแปลง
       if (global.io) {
-        global.io.emit('palletLabel:changed', { type: 'palletLabelChange', ...result });
+        global.io.emit("palletLabel:changed", {
+          type: "palletLabelChange",
+
+          ...result,
+        });
       }
+
+      // =====================================================
+      // SUCCESS
+      // =====================================================
 
       return res.send({
         message: "move_pallet_success",
@@ -1711,9 +1797,17 @@ module.exports = {
         data: result,
       });
     } catch (e) {
+      console.error("MOVE PALLET ERROR:", e);
+
       if (e.message === "Pallet_notFound") {
         return res.status(404).send({
           message: "Pallet_notFound",
+        });
+      }
+
+      if (e.message === "user_not_found") {
+        return res.status(404).send({
+          message: "user_not_found",
         });
       }
 

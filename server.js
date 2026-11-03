@@ -14,8 +14,8 @@ dotenv.config();
 
 const allowedOrigins = [
    // 'http://localhost:4200',
-   'http://10.121.51.101:4200', // 👈 ใส่ IP เครื่อง Server notebook
- // 'http://10.121.1.85'// เครื่อง server จริง
+   'http://10.121.51.188:4200', // 👈 ใส่ IP เครื่อง Server notebook
+  //'http://10.121.1.85'// เครื่อง server จริง
 
 ];
 
@@ -70,6 +70,7 @@ const partMasterController = require('./controllers/PartMasterController')
 const locationController = require('./controllers/LocationController')
 const controlLotController = require('./controllers/ControlLotController')
 const issueController = require('./controllers/IssueController')
+const transactionAllController = require('./controllers/transactionAllController') 
 
 
 // user
@@ -166,6 +167,15 @@ app.post('/api/issue/deletePallet',(req, res) => issueController.closedPallet(re
 app.post('/api/issue/closedPallet',(req, res) => issueController.closedPallet(req,res));
 
 
+//transactionAll
+
+app.get('/api/transactionAll/list',(req,res) => transactionAllController.list(req,res))
+
+
+
+
+
+
 // เครื่อง server จริง
 // server.listen(3011,() => {
 //    console.log('API + WebSocket listening on port 3011');
@@ -179,6 +189,3 @@ server.listen(3001,'0.0.0.0', () => {
 });
 
 
-// app.listen(3001,'0.0.0.0', () => {
-//   console.log('API + WebSocket listening on port 3001');
-// });
