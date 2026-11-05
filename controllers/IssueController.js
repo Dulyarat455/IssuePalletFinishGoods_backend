@@ -290,6 +290,7 @@ module.exports = {
         normalQty,
         palletTempId,
         userId,
+        specialCode
       } = req.body;
 
       if (
@@ -300,7 +301,7 @@ module.exports = {
         palletTempId == null ||
         !itemNo ||
         !itemName ||
-        !moveMentThreeMonth
+        !moveMentThreeMonth 
       ) {
         return res.status(400).send({ message: "missing_required_fields" });
       }
@@ -316,6 +317,7 @@ module.exports = {
           totalBox: parseInt(totalBox),
           moveMentThreeMonth: moveMentThreeMonth,
           userId: parseInt(userId),
+          specialCode: String(specialCode || "")
         },
       });
 
@@ -470,6 +472,7 @@ module.exports = {
         moveMentThreeMonth,
         normalQty,
         palletTempId,
+        specialCode
       } = req.body;
 
       if (
@@ -482,7 +485,7 @@ module.exports = {
         palletTempId == null ||
         !itemNo ||
         !itemName ||
-        !moveMentThreeMonth
+        !moveMentThreeMonth 
       ) {
         return res.status(400).send({ message: "missing_required_fields" });
       }
@@ -503,6 +506,7 @@ module.exports = {
           normalQty: parseInt(normalQty),
           totalBox: parseInt(totalBox),
           moveMentThreeMonth: moveMentThreeMonth,
+          specialCode: String(specialCode || "")
         },
       });
 
@@ -4605,6 +4609,8 @@ module.exports = {
         const itemNoForBarcode = firstAnyRow?.itemNo || header.itemNo || "";
 
         const itemName = header.itemName || firstAnyRow?.itemName || "";
+
+        
 
         // ===================================================
         // ITEM BARCODE
@@ -9115,6 +9121,8 @@ module.exports = {
 
                   userId: headerTemp.userId,
 
+                  specialCode: String(headerTemp.specialCode || "").trim(),
+                    
                   status: headerTemp.status || "use",
                 },
               });
@@ -11083,6 +11091,7 @@ module.exports = {
         normalQty,
         fractionQty,
         userId,
+        specialCode
       } = req.body;
 
       if (
@@ -11093,7 +11102,7 @@ module.exports = {
         palletId == null ||
         !itemNo ||
         !itemName ||
-        !moveMentThreeMonth
+        !moveMentThreeMonth 
       ) {
         return res.status(400).send({
           message: "missing_required_fields",
@@ -11111,6 +11120,7 @@ module.exports = {
           fractionQty: Number(fractionQty),
           moveMentThreeMonth: moveMentThreeMonth,
           userId: Number(userId),
+          specialCode: String(specialCode || ""),
         },
       });
 
@@ -12133,6 +12143,7 @@ module.exports = {
         moveMentThreeMonth,
         normalQty,
         fractionQty,
+        specialCode
       } = req.body;
 
       // =====================================================
@@ -12225,6 +12236,8 @@ module.exports = {
           normalQty: normalQtyInt,
 
           fractionQty: fractionQtyInt,
+
+          specialCode: String(specialCode || "")
         },
       });
 
@@ -12465,6 +12478,10 @@ module.exports = {
                   moveMentThreeMonth: headerTac.moveMentThreeMonth,
 
                   userId: Number(headerTac.userId),
+
+                  specialCode: String(
+                    headerTac.specialCode || ""
+                  ).trim(),
 
                   status: headerTac.status || "use",
                 },

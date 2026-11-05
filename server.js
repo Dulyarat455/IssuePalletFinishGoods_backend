@@ -14,7 +14,7 @@ dotenv.config();
 
 const allowedOrigins = [
    // 'http://localhost:4200',
-   'http://10.121.51.188:4200', // 👈 ใส่ IP เครื่อง Server notebook
+   'http://10.121.49.191:4200', // 👈 ใส่ IP เครื่อง Server notebook
   //'http://10.121.1.85'// เครื่อง server จริง
 
 ];
@@ -95,6 +95,10 @@ app.get('/api/partMaster/list',(req,res) => partMasterController.list(req,res))
 app.get('/api/partMaster/syncMasterPbass', (req,res) => partMasterController.syncMasterPbass(req,res))
 app.post('/api/partMaster/updateMaster', (req,res) => partMasterController.updateMaster(req,res))
 app.post('/api/partMaster/delete', (req,res) => partMasterController.delete(req,res))
+app.post('/api/partMaster/mapSpecialCodePartModel', (req,res) => partMasterController.mapSpecialCodePartModel(req,res))
+app.get('/api/partMaster/getMapSpecialCodePartModel', (req,res) => partMasterController.getMapSpecialCodePartModel(req,res))
+
+
 
 //Location
 app.post('/api/location/addRack', (req,res) => locationController.addRack(req,res))

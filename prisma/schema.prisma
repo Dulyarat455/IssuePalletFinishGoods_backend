@@ -71,6 +71,7 @@ model PartMaster {
   lotSize Int?    
   timeStmp DateTime @default(now())
   status String @default("use")
+  MapSpecialCodeModel MapSpecialCodeModel[]
 }
 
 model Area {
@@ -147,6 +148,7 @@ model HeaderIssueTemp {
   totalBox Int
   moveMentThreeMonth String
   userId Int
+  specialCode String?
   timeStmp DateTime @default(now())
   status String @default("use")
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -169,6 +171,7 @@ model HeaderIssue {
   moveMentThreeMonth String
   userId Int
   closedState String?  
+  specialCode String?
   timeStmp DateTime @default(now())
   status String @default("use")
   MapHeaderIssueFraction MapHeaderIssueFraction[]
@@ -325,6 +328,7 @@ model HeaderIssueTempTAC {
   controlLot String
   moveMentThreeMonth String
   userId Int
+  specialCode String?
   timeStmp DateTime @default(now())
   status String @default("use")
   BoxTAC BoxTAC[]
@@ -397,6 +401,16 @@ model LocMovePallet {
   User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+
+
+model MapSpecialCodeModel {
+  id Int @id() @default(autoincrement())
+  specialCodeName String
+  partMasterId Int
+  timeStmp DateTime @default(now())
+  status String @default("use")
+  PartMaster PartMaster @relation(fields: [partMasterId], references: [id], onDelete: NoAction, onUpdate: NoAction )
+}  
 
 
 
