@@ -4610,7 +4610,7 @@ module.exports = {
 
         const itemName = header.itemName || firstAnyRow?.itemName || "";
 
-        
+        const specialCode = String(header.specialCode || "").trim();
 
         // ===================================================
         // ITEM BARCODE
@@ -4796,6 +4796,8 @@ module.exports = {
             itemNo: itemNoForBarcode,
 
             itemName: itemName,
+
+            specialCode: specialCode,
 
             // ===============================================
             // USER
@@ -5044,10 +5046,22 @@ module.exports = {
                   </div>
   
   
-                  <div class="item-name">
-  
-                    ${escapeHtml(pageData.itemName)}
-  
+                 <div class="item-name-line">
+
+                    <span class="item-name-text">
+                      ${escapeHtml(pageData.itemName)}
+                    </span>
+
+                    ${
+                      pageData.specialCode
+                        ? `
+                          <span class="special-code-text">
+                            ${escapeHtml(pageData.specialCode)}
+                          </span>
+                        `
+                        : ""
+                    }
+
                   </div>
   
                 </div>
@@ -5609,23 +5623,38 @@ module.exports = {
             }
   
   
-            .item-name {
-  
-              color:
-                #111;
-  
-              font-size:
-                41px;
-  
-              line-height:
-                1.02;
-  
-              font-weight:
-                900;
-  
-              white-space:
-                nowrap;
-  
+            .item-name-line {
+              width: 100%;
+              min-width: 0;
+
+              display: flex;
+              align-items: baseline;
+
+              gap: 18px;
+
+              color: #111;
+
+              font-size: 41px;
+              line-height: 1.02;
+              font-weight: 900;
+
+              white-space: nowrap;
+
+              overflow: hidden;
+            }
+
+            .item-name-text {
+              flex: 0 1 auto;
+
+              min-width: 0;
+
+              white-space: nowrap;
+            }
+
+            .special-code-text {
+              flex: 0 0 auto;
+
+              white-space: nowrap;
             }
   
   
@@ -6123,13 +6152,9 @@ module.exports = {
   
   
             .lot-cell {
-  
-              text-align:
-                left;
-  
-              font-weight:
-                500;
-  
+              text-align: left;
+              font-size: 19px;
+              font-weight: 900;
             }
   
   
@@ -6381,6 +6406,39 @@ module.exports = {
           })
         );
       });
+
+
+
+      await page.evaluate(() => {
+        const rows =
+          document.querySelectorAll(
+            ".item-name-line"
+          );
+      
+        rows.forEach((row) => {
+          const el = row;
+      
+          let fontSize = 41;
+      
+          const minFontSize = 22;
+      
+          el.style.fontSize =
+            `${fontSize}px`;
+      
+          while (
+            el.scrollWidth >
+              el.clientWidth &&
+            fontSize >
+              minFontSize
+          ) {
+            fontSize -= 1;
+      
+            el.style.fontSize =
+              `${fontSize}px`;
+          }
+        });
+      });
+
 
       // =====================================================
       // PDF
@@ -7071,6 +7129,9 @@ module.exports = {
 
       const itemName = header.itemName || firstAnyRow?.itemName || "";
 
+      const specialCode = String(header.specialCode || "").trim();
+
+
       // =====================================================
       // ITEM BARCODE
       // =====================================================
@@ -7221,6 +7282,8 @@ module.exports = {
           itemNo: itemNoForBarcode,
 
           itemName: itemName,
+
+          specialCode: specialCode,
 
           // USER
 
@@ -7410,9 +7473,22 @@ module.exports = {
                   </div>
   
   
-                  <div class="item-name">
-                    ${escapeHtml(pageData.itemName)}
-                  </div>
+                <div
+                  class="item-name-line"
+                  data-has-special-code="${
+                    pageData.specialCode ? "true" : "false"
+                  }"
+                >
+
+                  <span class="item-name-content">
+                    ${escapeHtml(pageData.itemName)}${
+                      pageData.specialCode
+                        ? `&nbsp;&nbsp;&nbsp;${escapeHtml(pageData.specialCode)}`
+                        : ""
+                    }
+                  </span>
+
+                </div>
   
                 </div>
   
@@ -7868,22 +7944,26 @@ module.exports = {
             }
   
   
-            .item-name {
-              color:
-                #111;
-  
-              font-size:
-                41px;
-  
-              line-height:
-                1.02;
-  
-              font-weight:
-                900;
-  
-              white-space:
-                nowrap;
+           .item-name-line {
+              width: 100%;
+
+              color: #111;
+
+              font-size: 41px;
+              line-height: 1.02;
+              font-weight: 900;
+
+              white-space: nowrap;
+
+              overflow: visible;
             }
+
+            .item-name-content {
+              display: inline-block;
+              white-space: nowrap;
+            }
+
+             
   
   
             .top-type {
@@ -8301,12 +8381,14 @@ module.exports = {
             }
   
   
-            .lot-cell {
-              text-align:
-                left;
-  
-              font-weight:
-                500;
+            .main-table td.lot-cell {
+              text-align: left;
+
+              font-size: 22px;
+
+              font-weight: 900;
+
+              line-height: 1.15;
             }
   
   
@@ -8525,6 +8607,91 @@ module.exports = {
             });
           })
         );
+      });
+
+
+      await page.evaluate(() => {
+        const rows =
+          document.querySelectorAll(
+            ".item-name-line"
+          );
+      
+        rows.forEach((row) => {
+          const el = row;
+      
+          const content =
+            el.querySelector(
+              ".item-name-content"
+            );
+      
+          const sheet =
+            el.closest(".sheet");
+      
+          if (!content || !sheet) {
+            return;
+          }
+      
+          const defaultFontSize = 41;
+          const minFontSize = 22;
+      
+          // ทุก Header เริ่มที่ขนาดเดิม 41px เสมอ
+          el.style.fontSize =
+            `${defaultFontSize}px`;
+      
+          const hasSpecialCode =
+            el.dataset.hasSpecialCode ===
+            "true";
+      
+          // ===============================
+          // ไม่มี Special Code
+          // ห้ามย่อเด็ดขาด
+          // ===============================
+          if (!hasSpecialCode) {
+            return;
+          }
+      
+          // ===============================
+          // มี Special Code เท่านั้น
+          // ถึงจะตรวจว่าล้นกรอบหรือไม่
+          // ===============================
+          const sheetRect =
+            sheet.getBoundingClientRect();
+      
+          const rightLimit =
+            sheetRect.right;
+      
+          let contentRect =
+            content.getBoundingClientRect();
+      
+          // ยังไม่เลยเส้นขอบจริง
+          // ใช้ 41px เหมือนเดิม
+          if (
+            contentRect.right <=
+            rightLimit
+          ) {
+            return;
+          }
+      
+          // เลยเส้นจริงแล้ว
+          // ค่อยลดขนาด font
+          let fontSize =
+            defaultFontSize;
+      
+          while (
+            contentRect.right >
+              rightLimit &&
+            fontSize >
+              minFontSize
+          ) {
+            fontSize -= 1;
+      
+            el.style.fontSize =
+              `${fontSize}px`;
+      
+            contentRect =
+              content.getBoundingClientRect();
+          }
+        });
       });
 
       // =====================================================

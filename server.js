@@ -14,7 +14,7 @@ dotenv.config();
 
 const allowedOrigins = [
    // 'http://localhost:4200',
-   'http://10.121.49.191:4200', // 👈 ใส่ IP เครื่อง Server notebook
+   'http://10.121.51.233:4200', // 👈 ใส่ IP เครื่อง Server notebook
   //'http://10.121.1.85'// เครื่อง server จริง
 
 ];
@@ -174,9 +174,6 @@ app.post('/api/issue/closedPallet',(req, res) => issueController.closedPallet(re
 //transactionAll
 
 app.get('/api/transactionAll/list',(req,res) => transactionAllController.list(req,res))
-
-
-
 
 
 
